@@ -6,55 +6,238 @@
     <title>谁是卧底 - 联机版（稳定修复版）</title>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
-        body { background-color: #f5f7fa; padding: 15px; min-height: 100vh; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
-        .card-header { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #2d3748; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
-        .btn-primary { background-color: #4299e1; color: white; }
-        .btn-success { background-color: #48bb78; color: white; }
-        .btn-danger { background-color: #e53e3e; color: white; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 16px; margin-bottom: 15px; outline: none; }
-        .input:focus { border-color: #4299e1; box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1); }
-        .flex { display: flex; gap: 10px; }
-        .flex-wrap { flex-wrap: wrap; }
-        .justify-between { justify-content: space-between; }
-        .align-center { align-items: center; }
-        .text-center { text-align: center; }
-        .mb-10 { margin-bottom: 10px; }
-        .mb-20 { margin-bottom: 20px; }
-        .player-card { background-color: #f0f8fb; border-radius: 8px; padding: 15px; width: calc(20% - 8px); text-align: center; transition: all 0.3s; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Microsoft YaHei', Arial, sans-serif; 
+        }
+        body { 
+            background-color: #f5f7fa; 
+            padding: 15px; 
+            min-height: 100vh; 
+        }
+        .container { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+        }
+        .card { 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08); 
+            padding: 20px; 
+            margin-bottom: 20px; 
+        }
+        .card-header { 
+            font-size: 18px; 
+            font-weight: 600; 
+            margin-bottom: 15px; 
+            color: #2d3748; 
+            border-bottom: 1px solid #f0f0f0; 
+            padding-bottom: 10px; 
+        }
+        /* 按钮样式优化，提升优先级 */
+        .btn { 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            transition: all 0.3s; 
+            display: inline-block; 
+        }
+        .btn-primary { 
+            background-color: #4299e1; 
+            color: white; 
+        }
+        .btn-success { 
+            background-color: #48bb78; 
+            color: white; 
+        }
+        .btn-danger { 
+            background-color: #e53e3e; 
+            color: white; 
+        }
+        .btn:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+        }
+        /* 输入框样式优化，确保显示正常 */
+        .input { 
+            width: 100%; 
+            padding: 14px 16px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            margin-bottom: 15px; 
+            outline: none; 
+            display: block; /* 确保独占一行，不被遮挡 */
+            z-index: 1001; /* 提升层级，避免被其他元素遮挡 */
+        }
+        .input:focus { 
+            border-color: #4299e1; 
+            box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1); 
+        }
+        .flex { 
+            display: flex; 
+            gap: 10px; 
+        }
+        .flex-wrap { 
+            flex-wrap: wrap; 
+        }
+        .justify-between { 
+            justify-content: space-between; 
+        }
+        .align-center { 
+            align-items: center; 
+        }
+        .text-center { 
+            text-align: center; 
+        }
+        .mb-10 { 
+            margin-bottom: 10px; 
+        }
+        .mb-20 { 
+            margin-bottom: 20px; 
+        }
+        .player-card { 
+            background-color: #f0f8fb; 
+            border-radius: 8px; 
+            padding: 15px; 
+            width: calc(20% - 8px); 
+            text-align: center; 
+            transition: all 0.3s; 
+        }
         @media (max-width: 768px) {
-            .player-card { width: calc(33.33% - 7px); }
+            .player-card { 
+                width: calc(33.33% - 7px); 
+            }
         }
         @media (max-width: 480px) {
-            .player-card { width: calc(50% - 5px); }
+            .player-card { 
+                width: calc(50% - 5px); 
+            }
+            .flex { 
+                flex-direction: column; /* 移动端按钮纵向排列，避免遮挡输入框 */
+            }
+            .btn { 
+                width: 100%; /* 移动端按钮占满宽度 */
+            }
         }
-        .player-card.alive { border: 2px solid #48bb78; }
-        .player-card.dead { border: 2px solid #e53e3e; opacity: 0.7; }
-        .player-card.you { background-color: #e8f4f8; border: 2px solid #4299e1; }
-        .speech-list { max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-        .speech-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f7fafc; }
-        .speech-name { font-weight: 600; color: #4299e1; margin-bottom: 4px; }
-        .speech-time { font-size: 12px; color: #999; margin-left: 8px; }
-        .speech-content { color: #4a5568; }
-        .vote-item { background-color: #f0f8fb; border-radius: 20px; padding: 8px 16px; cursor: pointer; transition: all 0.3s; }
-        .vote-item.selected { background-color: #4299e1; color: white; }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 500px; }
-        .hidden { display: none; }
-        .role-tag { display: inline-block; padding: 5px 10px; border-radius: 6px; color: white; font-weight: 600; }
-        .role-civilian { background-color: #48bb78; }
-        .role-spy { background-color: #e53e3e; }
-        .role-blank { background-color: #ed8936; }
-        .page { animation: fadeIn 0.3s ease; }
-        .error-tip { color: #e53e3e; font-size: 14px; margin-top: -10px; margin-bottom: 10px; display: none; }
-        .loading-tip { color: #4299e1; font-size: 16px; text-align: center; margin: 15px 0; }
+        .player-card.alive { 
+            border: 2px solid #48bb78; 
+        }
+        .player-card.dead { 
+            border: 2px solid #e53e3e; 
+            opacity: 0.7; 
+        }
+        .player-card.you { 
+            background-color: #e8f4f8; 
+            border: 2px solid #4299e1; 
+        }
+        .speech-list { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+        }
+        .speech-item { 
+            margin-bottom: 12px; 
+            padding-bottom: 12px; 
+            border-bottom: 1px solid #f7fafc; 
+        }
+        .speech-name { 
+            font-weight: 600; 
+            color: #4299e1; 
+            margin-bottom: 4px; 
+        }
+        .speech-time { 
+            font-size: 12px; 
+            color: #999; 
+            margin-left: 8px; 
+        }
+        .speech-content { 
+            color: #4a5568; 
+        }
+        .vote-item { 
+            background-color: #f0f8fb; 
+            border-radius: 20px; 
+            padding: 8px 16px; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+        }
+        .vote-item.selected { 
+            background-color: #4299e1; 
+            color: white; 
+        }
+        /* 弹窗样式优化，确保输入框不被遮挡 */
+        .modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 1000; /* 弹窗层级最高 */
+        }
+        .modal-content { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 30px; 
+            width: 90%; 
+            max-width: 400px; /* 缩小弹窗最大宽度，避免移动端适配问题 */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+        }
+        .hidden { 
+            display: none !important; /* 强制隐藏，避免样式冲突 */
+        }
+        .role-tag { 
+            display: inline-block; 
+            padding: 5px 10px; 
+            border-radius: 6px; 
+            color: white; 
+            font-weight: 600; 
+        }
+        .role-civilian { 
+            background-color: #48bb78; 
+        }
+        .role-spy { 
+            background-color: #e53e3e; 
+        }
+        .role-blank { 
+            background-color: #ed8936; 
+        }
+        .page { 
+            animation: fadeIn 0.3s ease; 
+        }
+        .error-tip { 
+            color: #e53e3e; 
+            font-size: 14px; 
+            margin-top: -10px; 
+            margin-bottom: 15px; 
+            display: none; 
+            text-align: left; 
+        }
+        .loading-tip { 
+            color: #4299e1; 
+            font-size: 16px; 
+            text-align: center; 
+            margin: 15px 0; 
+        }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { 
+                opacity: 0; 
+                transform: translateY(10px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
         }
     </style>
 </head>
@@ -72,31 +255,35 @@
                 </div>
                 <div id="create-error" class="error-tip">创建房间失败，请重试！</div>
             </div>
+        </div>
 
-            <!-- 加入房间弹窗 -->
-            <div id="join-modal" class="modal hidden">
-                <div class="modal-content">
-                    <div class="card-header mb-20">加入房间</div>
-                    <input type="text" id="room-id-input" class="input" placeholder="请输入6位房间号">
-                    <div id="room-id-error" class="error-tip">请输入6位数字房间号！</div>
-                    <div id="join-loading" class="loading-tip hidden">正在连接房间...请稍候</div>
-                    <div class="flex justify-between">
-                        <button class="btn btn-danger" id="cancel-join-btn">取消</button>
-                        <button class="btn btn-primary" id="confirm-join-btn">确认加入</button>
-                    </div>
-                    <div id="join-error" class="error-tip text-center" style="margin-top: 10px;">房间不存在或已开始游戏！</div>
-                    <div id="join-timeout-error" class="error-tip text-center" style="margin-top: 10px; display: none;">连接超时，请检查房间号或提醒房主进入房间</div>
+        <!-- 加入房间弹窗（独立DOM，确保加载优先级） -->
+        <div id="join-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="card-header mb-20">加入房间</div>
+                <!-- 输入框单独放置，确保不被其他元素挤压 -->
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="room-id-input" class="input" placeholder="请输入6位房间号" maxlength="6">
                 </div>
+                <div id="room-id-error" class="error-tip">请输入6位数字房间号！</div>
+                <div id="join-loading" class="loading-tip hidden">正在连接房间...请稍候</div>
+                <!-- 按钮区域用flex，移动端自动纵向排列 -->
+                <div class="flex" style="margin-top: 20px;">
+                    <button class="btn btn-danger" id="cancel-join-btn">取消</button>
+                    <button class="btn btn-primary" id="confirm-join-btn">确认加入</button>
+                </div>
+                <div id="join-error" class="error-tip text-center" style="margin-top: 15px;">房间不存在或已开始游戏！</div>
+                <div id="join-timeout-error" class="error-tip text-center" style="margin-top: 15px; display: none;">连接超时，请检查房间号或提醒房主进入房间</div>
             </div>
+        </div>
 
-            <!-- 房间创建成功弹窗 -->
-            <div id="create-success-modal" class="modal hidden">
-                <div class="modal-content">
-                    <div class="card-header mb-20">房间创建成功</div>
-                    <p class="mb-10">你的房间号：<span id="created-room-id" style="font-size: 24px; color: #4299e1; font-weight: 600;"></span></p>
-                    <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，点击下方按钮进入房间等待</p>
-                    <button class="btn btn-primary w-100" id="enter-room-btn">进入游戏房间</button>
-                </div>
+        <!-- 房间创建成功弹窗 -->
+        <div id="create-success-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="card-header mb-20">房间创建成功</div>
+                <p class="mb-10">你的房间号：<span id="created-room-id" style="font-size: 24px; color: #4299e1; font-weight: 600;"></span></p>
+                <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，点击下方按钮进入房间等待</p>
+                <button class="btn btn-primary w-100" id="enter-room-btn">进入游戏房间</button>
             </div>
         </div>
 
@@ -141,21 +328,21 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 游戏结束弹窗 -->
-            <div id="game-end-modal" class="modal hidden">
-                <div class="modal-content">
-                    <div class="card-header mb-20">游戏结束</div>
-                    <p class="mb-10">获胜阵营：<span id="winner-text" style="font-size: 20px; color: #ed8936; font-weight: 600;"></span></p>
-                    <p class="mb-10">获胜原因：<span id="win-reason"></span></p>
-                    <div class="mb-20">
-                        <p class="mb-10">最终身份列表：</p>
-                        <div id="final-role-list"></div>
-                    </div>
-                    <div class="flex justify-between">
-                        <button class="btn btn-success" id="restart-game-btn">再来一局</button>
-                        <button class="btn btn-danger" id="back-home-btn">返回首页</button>
-                    </div>
+        <!-- 游戏结束弹窗 -->
+        <div id="game-end-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="card-header mb-20">游戏结束</div>
+                <p class="mb-10">获胜阵营：<span id="winner-text" style="font-size: 20px; color: #ed8936; font-weight: 600;"></span></p>
+                <p class="mb-10">获胜原因：<span id="win-reason"></span></p>
+                <div class="mb-20">
+                    <p class="mb-10">最终身份列表：</p>
+                    <div id="final-role-list"></div>
+                </div>
+                <div class="flex justify-between">
+                    <button class="btn btn-success" id="restart-game-btn">再来一局</button>
+                    <button class="btn btn-danger" id="back-home-btn">返回首页</button>
                 </div>
             </div>
         </div>
@@ -203,7 +390,7 @@
             { civilian: "跑步", spy: "散步" }
         ];
 
-        // DOM 元素缓存
+        // DOM 元素缓存（确保提前获取，避免加载延迟）
         const DOM = {
             // 页面
             roomEntryPage: document.getElementById('room-entry'),
@@ -212,7 +399,7 @@
             joinModal: document.getElementById('join-modal'),
             createSuccessModal: document.getElementById('create-success-modal'),
             gameEndModal: document.getElementById('game-end-modal'),
-            // 输入框
+            // 输入框（重点确保获取到）
             playerName: document.getElementById('player-name'),
             roomIdInput: document.getElementById('room-id-input'),
             speechInput: document.getElementById('speech-input'),
@@ -261,7 +448,11 @@
             forceTLS: true
         });
 
-        // 初始化事件监听
+        // 初始化事件监听（确保DOM加载完成后绑定）
+        document.addEventListener('DOMContentLoaded', function() {
+            initEvents();
+        });
+
         function initEvents() {
             // 房间入口页
             DOM.createRoomBtn.addEventListener('click', handleCreateRoom);
@@ -270,6 +461,10 @@
                 DOM.joinTimeoutError.style.display = 'none';
                 DOM.roomEntryPage.classList.add('hidden');
                 DOM.joinModal.classList.remove('hidden');
+                // 主动聚焦输入框，确保显示并可输入
+                setTimeout(() => {
+                    DOM.roomIdInput.focus();
+                }, 100);
             });
             DOM.cancelJoinBtn.addEventListener('click', () => {
                 // 清除超时计时器
@@ -294,6 +489,7 @@
                 DOM.nameError.style.display = 'none';
             });
             DOM.roomIdInput.addEventListener('input', (e) => {
+                // 仅允许输入数字
                 e.target.value = e.target.value.trim().replace(/[^0-9]/g, '');
                 DOM.roomIdError.style.display = 'none';
                 DOM.joinError.style.display = 'none';
@@ -852,9 +1048,6 @@
         function getAliveCount() {
             return gameState.players.filter(player => player.isAlive).length;
         }
-
-        // 初始化游戏（绑定所有事件）
-        initEvents();
     </script>
 </body>
 </html>
