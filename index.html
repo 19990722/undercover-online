@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>谁是卧底 - 联机版（稳定版）</title>
+    <title>谁是卧底 - 联机版（稳定修复版）</title>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
@@ -62,7 +62,7 @@
         <!-- 房间入口页 -->
         <div id="room-entry" class="page">
             <div class="card">
-                <div class="card-header">谁是卧底 - 联机版（稳定版）</div>
+                <div class="card-header">谁是卧底 - 联机版（稳定修复版）</div>
                 <input type="text" id="player-name" class="input" placeholder="请输入你的昵称（最多8字）" maxlength="8">
                 <div id="name-error" class="error-tip">请输入有效的昵称！</div>
                 <div class="flex">
@@ -288,7 +288,7 @@
             });
         }
 
-        // 1. 创建房间（核心优化：本地创建+Pusher同步，无需外部数据库）
+        // 1. 创建房间（核心修复：Pusher事件名前缀改为client-）
         function handleCreateRoom() {
             const name = DOM.playerName.value.trim();
             if (!name) {
@@ -316,11 +316,11 @@
                 // 订阅房间频道（Pusher 实时通信）
                 const channel = pusher.subscribe(`room-${roomId}`);
                 
-                // 同步房间初始数据到频道
-                channel.trigger('room-updated', gameState);
+                // 同步房间初始数据到频道（事件名改为client-room-updated）
+                channel.trigger('client-room-updated', gameState);
                 
                 // 监听房间数据变化（接收其他玩家的更新）
-                channel.bind('room-updated', (updatedState) => {
+                channel.bind('client-room-updated', (updatedState) => {
                     gameState = updatedState;
                     updatePlayerList();
                     if (currentRoom.isHost) updateStartBtnStatus();
@@ -336,7 +336,7 @@
             }
         }
 
-        // 2. 加入房间
+        // 2. 加入房间（修复Pusher事件名）
         function handleJoinRoom() {
             const name = DOM.playerName.value.trim();
             const roomId = DOM.roomIdInput.value.trim();
@@ -359,7 +359,7 @@
                 const channel = pusher.subscribe(`room-${roomId}`);
                 
                 // 监听房间当前数据（获取已有玩家信息）
-                channel.bind('room-updated', (currentState) => {
+                channel.bind('client-room-updated', (currentState) => {
                     // 验证房间状态
                     if (!currentState) {
                         DOM.joinError.style.display = 'block';
@@ -378,15 +378,15 @@
                     const newPlayer = { id: currentUser.id, name, role: null, isAlive: true };
                     gameState = { ...currentState, players: [...currentState.players, newPlayer] };
 
-                    // 同步更新到房间频道
-                    channel.trigger('room-updated', gameState);
+                    // 同步更新到房间频道（事件名改为client-room-updated）
+                    channel.trigger('client-room-updated', gameState);
 
                     // 进入游戏房间
                     DOM.joinModal.classList.add('hidden');
                     enterGameRoom();
 
                     // 持续监听房间数据变化
-                    channel.bind('room-updated', (updatedState) => {
+                    channel.bind('client-room-updated', (updatedState) => {
                         gameState = updatedState;
                         updatePlayerList();
                         updateMyRoleInfo();
@@ -402,7 +402,7 @@
                 });
 
                 // 触发一次数据请求（让频道发送当前状态）
-                channel.trigger('request-room-state', {});
+                channel.trigger('client-request-room-state', {});
             } catch (err) {
                 console.error('加入房间失败：', err);
                 DOM.joinError.style.display = 'block';
@@ -422,14 +422,14 @@
                 updateStartBtnStatus();
 
                 // 房主持续同步房间数据
-                const channel = pusher.channel(`room-${roomId}`);
-                channel.bind('request-room-state', () => {
-                    channel.trigger('room-updated', gameState);
+                const channel = pusher.channel(`room-${currentRoom.id}`);
+                channel.bind('client-request-room-state', () => {
+                    channel.trigger('client-room-updated', gameState);
                 });
             }
         }
 
-        // 4. 开始游戏（房主）
+        // 4. 开始游戏（房主，修复Pusher事件名）
         function handleStartGame() {
             if (gameState.players.length < 4) return alert('至少4人才能开始！');
 
@@ -459,16 +459,16 @@
                 speechCount: 0
             };
 
-            // 同步到所有玩家
+            // 同步到所有玩家（事件名改为client-room-updated）
             const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('room-updated', gameState);
+            channel.trigger('client-room-updated', gameState);
 
             // 自己更新UI
             DOM.gameContent.classList.remove('hidden');
             updateMyRoleInfo();
         }
 
-        // 5. 提交发言
+        // 5. 提交发言（修复Pusher事件名）
         function handleSubmitSpeech() {
             const content = DOM.speechInput.value.trim();
             if (!content) return;
@@ -500,15 +500,15 @@
                 speechCount: gameState.speechCount + 1
             };
 
-            // 同步到所有玩家
+            // 同步到所有玩家（事件名改为client-room-updated）
             const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('room-updated', gameState);
+            channel.trigger('client-room-updated', gameState);
 
             DOM.speechInput.value = '';
             DOM.speechError.style.display = 'none';
         }
 
-        // 6. 提交投票
+        // 6. 提交投票（修复Pusher事件名）
         function handleSubmitVote() {
             const selected = document.querySelector('.vote-item.selected');
             if (!selected) return alert('请选择投票目标！');
@@ -517,12 +517,12 @@
             // 更新投票数据
             gameState.votes[currentUser.id] = targetId;
 
-            // 同步到所有玩家
+            // 同步到所有玩家（事件名改为client-room-updated）
             const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('room-updated', gameState);
+            channel.trigger('client-room-updated', gameState);
         }
 
-        // 7. 处理投票结果
+        // 7. 处理投票结果（修复Pusher事件名）
         function handleVoteResult() {
             // 统计投票
             const voteCount = {};
@@ -567,15 +567,15 @@
                 status: result ? 'ended' : 'playing'
             };
 
-            // 同步到所有玩家
+            // 同步到所有玩家（事件名改为client-room-updated）
             const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('room-updated', gameState);
+            channel.trigger('client-room-updated', gameState);
 
             // 显示游戏结束弹窗
             if (result) showGameEnd(result, updatedPlayers);
         }
 
-        // 8. 再来一局
+        // 8. 再来一局（修复Pusher事件名）
         function handleRestartGame() {
             if (!currentRoom.isHost) return alert('仅房主可发起再来一局！');
 
@@ -592,9 +592,9 @@
                 speechCount: 0
             };
 
-            // 同步到所有玩家
+            // 同步到所有玩家（事件名改为client-room-updated）
             const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('room-updated', gameState);
+            channel.trigger('client-room-updated', gameState);
 
             // 自己更新UI
             DOM.gameEndModal.classList.add('hidden');
@@ -613,7 +613,7 @@
             if (updatedPlayers.length > 0) {
                 gameState = { ...gameState, players: updatedPlayers };
                 const channel = pusher.channel(`room-${currentRoom.id}`);
-                channel.trigger('room-updated', gameState);
+                channel.trigger('client-room-updated', gameState);
             }
 
             // 退订频道
