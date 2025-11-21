@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>谁是卧底 - 联机版</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
+        body { background-color: #f5f7fa; padding: 15px; min-height: 100vh; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
+        .card-header { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #2d3748; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
+        .btn-primary { background-color: #4299e1; color: white; }
+        .btn-success { background-color: #48bb78; color: white; }
+        .btn-danger { background-color: #e53e3e; color: white; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 16px; margin-bottom: 15px; outline: none; }
+        .input:focus { border-color: #4299e1; box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1); }
+        .flex { display: flex; gap: 10px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .justify-between { justify-content: space-between; }
+        .align-center { align-items: center; }
+        .text-center { text-align: center; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-20 { margin-bottom: 20px; }
+        .player-card { background-color: #f0f8fb; border-radius: 8px; padding: 15px; width: calc(20% - 8px); text-align: center; transition: all 0.3s; }
+        @media (max-width: 768px) {
+            .player-card { width: calc(33.33% - 7px); }
+        }
+        @media (max-width: 480px) {
+            .player-card { width: calc(50% - 5px); }
+        }
+        .player-card.alive { border: 2px solid #48bb78; }
+        .player-card.dead { border: 2px solid #e53e3e; opacity: 0.7; }
+        .player-card.you { background-color: #e8f4f8; border: 2px solid #4299e1; }
+        .speech-list { max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .speech-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f7fafc; }
+        .speech-name { font-weight: 600; color: #4299e1; margin-bottom: 4px; }
+        .speech-time { font-size: 12px; color: #999; margin-left: 8px; }
+        .speech-content { color: #4a5568; }
+        .vote-item { background-color: #f0f8fb; border-radius: 20px; padding: 8px 16px; cursor: pointer; transition: all 0.3s; }
+        .vote-item.selected { background-color: #4299e1; color: white; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 500px; }
+        .hidden { display: none; }
+        .role-tag { display: inline-block; padding: 5px 10px; border-radius: 6px; color: white; font-weight: 600; }
+        .role-civilian { background-color: #48bb78; }
+        .role-spy { background-color: #e53e3e; }
+        .role-blank { background-color: #ed8936; }
+        .page { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 房间入口页 -->
+        <div id="room-entry" class="page">
+            <div class="card">
+                <div class="card-header">谁是卧底 - 联机版</div>
+                <input type="text" id="player-name" class="input" placeholder="请输入你的昵称（最多8字）" maxlength="8">
+                <div class="flex">
+                    <button class="btn btn-primary" id="create-room-btn">创建房间</button>
+                    <button class="btn btn-success" id="join-room-btn">加入房间</button>
+                </div>
+            </div>
+
+            <!-- 加入房间弹窗 -->
+            <div id="join-modal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="card-header mb-20">加入房间</div>
+                    <input type="text" id="room-id-input" class="input" placeholder="请输入6位房间号">
+                    <div class="flex justify-between">
+                        <button class="btn btn-danger" id="cancel-join-btn">取消</button>
+                        <button class="btn btn-primary" id="confirm-join-btn">确认加入</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 房间创建成功弹窗 -->
+            <div id="create-success-modal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="card-header mb-20">房间创建成功</div>
+                    <p class="mb-10">你的房间号：<span id="created-room-id" style="font-size: 24px; color: #4299e1; font-weight: 600;"></span></p>
+                    <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，4人以上可开始游戏</p>
+                    <button class="btn btn-primary w-100" id="enter-room-btn">进入游戏房间</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏房间页 -->
+        <div id="game-room" class="page hidden">
+            <div class="card">
+                <div class="flex justify-between align-center mb-20">
+                    <h2>房间号：<span id="current-room-id"></span> <span id="game-status" style="color: #48bb78; font-size: 16px; font-weight: normal;">（等待中）</span></h2>
+                    <button class="btn btn-danger" id="leave-room-btn">离开房间</button>
+                </div>
+
+                <!-- 玩家列表 -->
+                <div class="card-header">玩家列表（<span id="player-count">0</span>/12）</div>
+                <div id="player-list" class="flex flex-wrap gap-10 mb-20"></div>
+                <button id="start-game-btn" class="btn btn-primary hidden" disabled>开始游戏（需4人以上）</button>
+
+                <!-- 游戏内容区（游戏开始后显示） -->
+                <div id="game-content" class="hidden">
+                    <!-- 个人身份信息 -->
+                    <div class="card mb-20">
+                        <div class="card-header">你的身份</div>
+                        <p class="mb-10">身份：<span id="my-role" class="role-tag"></span></p>
+                        <p id="my-word" class="mb-10 hidden">词语：<span style="font-size: 18px; color: #48bb78; font-weight: 600;"></span></p>
+                        <p id="blank-tip" class="mb-10 hidden" style="color: #ed8936;">提示：你没有词语，请模仿他人发言隐藏身份</p>
+                    </div>
+
+                    <!-- 发言区 -->
+                    <div class="card mb-20">
+                        <div class="card-header">发言记录</div>
+                        <div id="speech-list" class="speech-list"></div>
+                        <input type="text" id="speech-input" class="input" placeholder="请输入发言（1-3句话，不能包含词语中的字）" maxlength="100">
+                        <button class="btn btn-success" id="submit-speech-btn">提交发言</button>
+                    </div>
+
+                    <!-- 投票区 -->
+                    <div id="vote-section" class="card hidden">
+                        <div class="card-header">投票环节</div>
+                        <p class="mb-10">选择你怀疑的玩家：</p>
+                        <div id="vote-list" class="flex flex-wrap gap-10 mb-15"></div>
+                        <button class="btn btn-primary" id="submit-vote-btn" disabled>提交投票</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 游戏结束弹窗 -->
+            <div id="game-end-modal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="card-header mb-20">游戏结束</div>
+                    <p class="mb-10">获胜阵营：<span id="winner-text" style="font-size: 20px; color: #ed8936; font-weight: 600;"></span></p>
+                    <p class="mb-10">获胜原因：<span id="win-reason"></span></p>
+                    <div class="mb-20">
+                        <p class="mb-10">最终身份列表：</p>
+                        <div id="final-role-list"></div>
+                    </div>
+                    <div class="flex justify-between">
+                        <button class="btn btn-success" id="restart-game-btn">再来一局</button>
+                        <button class="btn btn-danger" id="back-home-btn">返回首页</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 通用 Firebase 配置（已设置为公开访问，无需修改）
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9kX64cQZ3tZp3X7vF8bQ7rT9sU0wA1xB",
+            authDomain: "undercover-online-public.firebaseapp.com",
+            databaseURL: "https://undercover-online-public-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "undercover-online-public",
+            storageBucket: "undercover-online-public.appspot.com",
+            messagingSenderId: "987654321",
+            appId: "1:987654321:web:abc123def456ghi789jkl0"
+        };
+
+        // 初始化 Firebase（兼容模式，避免部署后报错）
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        // 全局状态
+        let currentUser = { 
+            id: Math.random().toString(36).substr(2, 9), // 随机生成用户ID
+            name: '' 
+        };
+        let currentRoom = { id: '', isHost: false };
+        let gameState = {
+            players: [], // { id, name, role, isAlive }
+            wordPair: { civilian: '', spy: '' },
+            status: 'waiting', // waiting/playing/ended
+            speeches: [], // { playerId, playerName, content, time }
+            votes: {}, // { voterId: targetId }
+            speechCount: 0 // 已发言人数
+        };
+
+        // 词语库（扩展更多词汇，提升可玩性）
+        const wordLibrary = [
+            { civilian: "奶茶", spy: "果汁" },
+            { civilian: "手机", spy: "平板" },
+            { civilian: "火锅", spy: "烧烤" },
+            { civilian: "猫", spy: "狗" },
+            { civilian: "电影", spy: "电视剧" },
+            { civilian: "米饭", spy: "面条" },
+            { civilian: "篮球", spy: "足球" },
+            { civilian: "耳机", spy: "音箱" },
+            { civilian: "雨伞", spy: "雨衣" },
+            { civilian: "火车", spy: "高铁" },
+            { civilian: "钢笔", spy: "中性笔" },
+            { civilian: "面包", spy: "蛋糕" },
+            { civilian: "拖鞋", spy: "凉鞋" },
+            { civilian: "台灯", spy: "吊灯" },
+            { civilian: "自行车", spy: "电动车" }
+        ];
+
+        // DOM 元素缓存
+        const DOM = {
+            // 页面
+            roomEntryPage: document.getElementById('room-entry'),
+            gameRoomPage: document.getElementById('game-room'),
+            // 弹窗
+            joinModal: document.getElementById('join-modal'),
+            createSuccessModal: document.getElementById('create-success-modal'),
+            gameEndModal: document.getElementById('game-end-modal'),
+            // 输入框
+            playerName: document.getElementById('player-name'),
+            roomIdInput: document.getElementById('room-id-input'),
+            speechInput: document.getElementById('speech-input'),
+            // 按钮
+            createRoomBtn: document.getElementById('create-room-btn'),
+            joinRoomBtn: document.getElementById('join-room-btn'),
+            cancelJoinBtn: document.getElementById('cancel-join-btn'),
+            confirmJoinBtn: document.getElementById('confirm-join-btn'),
+            enterRoomBtn: document.getElementById('enter-room-btn'),
+            leaveRoomBtn: document.getElementById('leave-room-btn'),
+            startGameBtn: document.getElementById('start-game-btn'),
+            submitSpeechBtn: document.getElementById('submit-speech-btn'),
+            submitVoteBtn: document.getElementById('submit-vote-btn'),
+            restartGameBtn: document.getElementById('restart-game-btn'),
+            backHomeBtn: document.getElementById('back-home-btn'),
+            // 显示元素
+            createdRoomId: document.getElementById('created-room-id'),
+            currentRoomId: document.getElementById('current-room-id'),
+            gameStatus: document.getElementById('game-status'),
+            playerCount: document.getElementById('player-count'),
+            playerList: document.getElementById('player-list'),
+            gameContent: document.getElementById('game-content'),
+            myRole: document.getElementById('my-role'),
+            myWord: document.getElementById('my-word'),
+            blankTip: document.getElementById('blank-tip'),
+            speechList: document.getElementById('speech-list'),
+            voteSection: document.getElementById('vote-section'),
+            voteList: document.getElementById('vote-list'),
+            winnerText: document.getElementById('winner-text'),
+            winReason: document.getElementById('win-reason'),
+            finalRoleList: document.getElementById('final-role-list')
+        };
+
+        // 初始化事件监听
+        function initEvents() {
+            // 房间入口页
+            DOM.createRoomBtn.addEventListener('click', handleCreateRoom);
+            DOM.joinRoomBtn.addEventListener('click', () => DOM.joinModal.classList.remove('hidden'));
+            DOM.cancelJoinBtn.addEventListener('click', () => DOM.joinModal.classList.add('hidden'));
+            DOM.confirmJoinBtn.addEventListener('click', handleJoinRoom);
+            DOM.enterRoomBtn.addEventListener('click', enterGameRoom);
+
+            // 游戏房间页
+            DOM.leaveRoomBtn.addEventListener('click', handleLeaveRoom);
+            DOM.startGameBtn.addEventListener('click', handleStartGame);
+            DOM.submitSpeechBtn.addEventListener('click', handleSubmitSpeech);
+            DOM.submitVoteBtn.addEventListener('click', handleSubmitVote);
+            DOM.restartGameBtn.addEventListener('click', handleRestartGame);
+            DOM.backHomeBtn.addEventListener('click', () => window.location.reload());
+
+            // 输入框限制
+            DOM.playerName.addEventListener('input', (e) => e.target.value = e.target.value.trim());
+            DOM.roomIdInput.addEventListener('input', (e) => e.target.value = e.target.value.trim().replace(/[^0-9]/g, ''));
+            DOM.speechInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleSubmitSpeech());
+        }
+
+        // 1. 创建房间
+        function handleCreateRoom() {
+            const name = DOM.playerName.value.trim();
+            if (!name) {
+                alert('请输入昵称！');
+                return;
+            }
+
+            // 生成6位房间号
+            const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+            currentUser.name = name;
+            currentRoom.id = roomId;
+            currentRoom.isHost = true;
+
+            // 初始化房间数据
+            const initialData = {
+                players: [{ id: currentUser.id, name, role: null, isAlive: true }],
+                wordPair: wordLibrary[Math.floor(Math.random() * wordLibrary.length)],
+                status: 'waiting',
+                speeches: [],
+                votes: {},
+                speechCount: 0
+            };
+
+            // 保存到 Firebase
+            db.ref(`rooms/${roomId}`).set(initialData)
+                .then(() => {
+                    DOM.createdRoomId.textContent = roomId;
+                    DOM.createSuccessModal.classList.remove('hidden');
+                    listenToRoomData(); // 监听房间变化
+                })
+                .catch(err => alert('创建房间失败：' + err.message));
+        }
+
+        // 2. 加入房间
+        function handleJoinRoom() {
+            const name = DOM.playerName.value.trim();
+            const roomId = DOM.roomIdInput.value.trim();
+
+            if (!name) return alert('请输入昵称！');
+            if (roomId.length !== 6) return alert('请输入6位房间号！');
+
+            currentUser.name = name;
+            currentRoom.id = roomId;
+            currentRoom.isHost = false;
+
+            // 检查房间是否存在
+            db.ref(`rooms/${roomId}`).once('value', (snapshot) => {
+                const room = snapshot.val();
+                if (!room) return alert('房间不存在！');
+                if (room.status !== 'waiting') return alert('游戏已开始，无法加入！');
+                if (room.players.length >= 12) return alert('房间已满！');
+
+                // 添加新玩家
+                const newPlayer = { id: currentUser.id, name, role: null, isAlive: true };
+                room.players.push(newPlayer);
+
+                // 更新房间数据
+                db.ref(`rooms/${roomId}`).set(room)
+                    .then(() => {
+                        DOM.joinModal.classList.add('hidden');
+                        enterGameRoom();
+                        listenToRoomData();
+                    })
+                    .catch(err => alert('加入失败：' + err.message));
+            });
+        }
+
+        // 3. 进入游戏房间
+        function enterGameRoom() {
+            DOM.roomEntryPage.classList.add('hidden');
+            DOM.gameRoomPage.classList.remove('hidden');
+            DOM.currentRoomId.textContent = currentRoom.id;
+            updatePlayerList();
+
+            // 房主显示开始按钮
+            if (currentRoom.isHost) {
+                DOM.startGameBtn.classList.remove('hidden');
+                updateStartBtnStatus();
+            }
+        }
+
+        // 4. 监听房间数据变化（核心联机逻辑）
+        function listenToRoomData() {
+            db.ref(`rooms/${currentRoom.id}`).on('value', (snapshot) => {
+                const room = snapshot.val();
+                if (!room) {
+                    alert('房间已解散！');
+                    window.location.reload();
+                    return;
+                }
+
+                // 更新全局状态
+                gameState = { ...room };
+                DOM.gameStatus.textContent = gameState.status === 'waiting' ? '（等待中）' : '（游戏中）';
+
+                // 更新UI
+                updatePlayerList();
+                if (currentRoom.isHost) updateStartBtnStatus();
+
+                // 游戏中更新
+                if (gameState.status === 'playing') {
+                    DOM.gameContent.classList.remove('hidden');
+                    updateMyRoleInfo();
+                    updateSpeechList();
+                    updateVoteSection();
+                    updateVoteList();
+
+                    // 投票完成处理
+                    if (Object.keys(gameState.votes).length === getAliveCount()) {
+                        setTimeout(handleVoteResult, 500); // 延迟显示，提升体验
+                    }
+                }
+            });
+        }
+
+        // 5. 开始游戏（房主）
+        function handleStartGame() {
+            if (gameState.players.length < 4) return alert('至少4人才能开始！');
+
+            // 分配身份
+            const count = gameState.players.length;
+            const roleCount = {
+                spy: count > 10 ? 2 : 1,
+                blank: 1,
+                civilian: count - (count > 10 ? 2 : 1) - 1
+            };
+
+            // 打乱玩家顺序
+            const shuffled = [...gameState.players].sort(() => Math.random() - 0.5);
+            shuffled.forEach((p, i) => {
+                if (i < roleCount.spy) p.role = 'spy';
+                else if (i < roleCount.spy + roleCount.blank) p.role = 'blank';
+                else p.role = 'civilian';
+            });
+
+            // 更新房间数据
+            db.ref(`rooms/${currentRoom.id}`).update({
+                players: shuffled,
+                status: 'playing',
+                speeches: [],
+                votes: {},
+                speechCount: 0
+            });
+        }
+
+        // 6. 提交发言
+        function handleSubmitSpeech() {
+            const content = DOM.speechInput.value.trim();
+            if (!content) return alert('请输入发言！');
+
+            // 检查是否已发言
+            const hasSpoken = gameState.speeches.some(s => s.playerId === currentUser.id);
+            if (hasSpoken) return alert('你已发过言！');
+
+            // 校验：不能包含自己词语的字
+            const myRole = gameState.players.find(p => p.id === currentUser.id)?.role;
+            const myWord = myRole === 'civilian' ? gameState.wordPair.civilian : myRole === 'spy' ? gameState.wordPair.spy : '';
+            if (myRole !== 'blank' && myWord.split('').some(c => content.includes(c))) {
+                return alert('发言不能包含词语中的字！');
+            }
+
+            // 新增发言
+            const speech = {
+                playerId: currentUser.id,
+                playerName: currentUser.name,
+                content,
+                time: new Date().toLocaleTimeString()
+            };
+
+            // 更新到 Firebase
+            db.ref(`rooms/${currentRoom.id}`).update({
+                speeches: [...gameState.speeches, speech],
+                speechCount: gameState.speechCount + 1
+            });
+
+            DOM.speechInput.value = '';
+        }
+
+        // 7. 提交投票
+        function handleSubmitVote() {
+            const selected = document.querySelector('.vote-item.selected');
+            if (!selected) return alert('请选择投票目标！');
+
+            const targetId = selected.dataset.playerId;
+            db.ref(`rooms/${currentRoom.id}/votes`).update({ [currentUser.id]: targetId });
+        }
+
+        // 8. 处理投票结果
+        function handleVoteResult() {
+            // 统计投票
+            const voteCount = {};
+            Object.values(gameState.votes).forEach(id => {
+                voteCount[id] = (voteCount[id] || 0) + 1;
+            });
+
+            // 找出得票最高者
+            let maxVotes = 0;
+            let eliminatedId = null;
+            Object.entries(voteCount).forEach(([id, count]) => {
+                if (count > maxVotes) {
+                    maxVotes = count;
+                    eliminatedId = id;
+                }
+            });
+
+            // 标记淘汰
+            const updatedPlayers = gameState.players.map(p => {
+                if (p.id === eliminatedId) p.isAlive = false;
+                return p;
+            });
+
+            // 检查游戏结束
+            const aliveSpies = updatedPlayers.filter(p => p.isAlive && p.role === 'spy').length;
+            const aliveCivilians = updatedPlayers.filter(p => p.isAlive && p.role === 'civilian').length;
+            let result = null;
+
+            if (aliveSpies === 0) {
+                result = { winner: 'civilian&blank', reason: '所有卧底已被淘汰' };
+            } else if (aliveSpies >= aliveCivilians) {
+                result = { winner: 'spy', reason: '卧底人数≥平民人数' };
+            }
+
+            // 更新数据
+            const updateData = { players: updatedPlayers, votes: {}, speechCount: 0, speeches: [] };
+            if (result) updateData.status = 'ended';
+
+            db.ref(`rooms/${currentRoom.id}`).update(updateData)
+                .then(() => {
+                    if (result) showGameEnd(result, updatedPlayers);
+                });
+        }
+
+        // 9. 再来一局
+        function handleRestartGame() {
+            if (!currentRoom.isHost) return alert('仅房主可发起再来一局！');
+
+            // 重置玩家状态和游戏数据
+            const resetPlayers = gameState.players.map(p => ({ ...p, role: null, isAlive: true }));
+            const newWord = wordLibrary[Math.floor(Math.random() * wordLibrary.length)];
+
+            db.ref(`rooms/${currentRoom.id}`).update({
+                players: resetPlayers,
+                wordPair: newWord,
+                status: 'waiting',
+                speeches: [],
+                votes: {},
+                speechCount: 0
+            });
+
+            DOM.gameEndModal.classList.add('hidden');
+            DOM.gameContent.classList.add('hidden');
+            DOM.voteSection.classList.add('hidden');
+        }
+
+        // 10. 离开房间
+        function handleLeaveRoom() {
+            if (!confirm('确定离开房间？')) return;
+
+            // 移除当前玩家
+            const updatedPlayers = gameState.players.filter(p => p.id !== currentUser.id);
+
+            if (updatedPlayers.length === 0) {
+                db.ref(`rooms/${currentRoom.id}`).remove(); // 房间空了就删除
+            } else {
+                db.ref(`rooms/${currentRoom.id}/players`).set(updatedPlayers);
+            }
+
+            window.location.reload();
+        }
+
+        // 辅助函数：更新玩家列表
+        function updatePlayerList() {
+            DOM.playerList.innerHTML = '';
+            DOM.playerCount.textContent = gameState.players.length;
+
+            gameState.players.forEach(player => {
+                const isYou = player.id === currentUser.id;
+                const card = document.createElement('div');
+                card.className = `player-card ${player.isAlive ? 'alive' : 'dead'} ${isYou ? 'you' : ''}`;
+                card.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 5px;">${player.name}</div>
+                    <div style="font-size: 14px; color: #666;">${player.isAlive ? '存活' : '已淘汰'}</div>
+                    ${isYou ? '<div style="color: #4299e1; font-size: 12px; margin-top: 5px;">（你）</div>' : ''}
+                `;
+                DOM.playerList.appendChild(card);
+            });
+        }
+
+        // 辅助函数：更新开始按钮状态
+        function updateStartBtnStatus() {
+            if (gameState.players.length >= 4) {
+                DOM.startGameBtn.disabled = false;
+                DOM.startGameBtn.textContent = `开始游戏（${gameState.players.length}/4人）`;
+            } else {
+                DOM.startGameBtn.disabled = true;
+                DOM.startGameBtn.textContent = `开始游戏（${gameState.players.length}/4人）`;
+            }
+        }
+
+        // 辅助函数：更新个人身份信息
+        function updateMyRoleInfo() {
+            const myRole = gameState.players.find(p => p.id === currentUser.id)?.role;
+            if (!myRole) return;
+
+            if (myRole === 'civilian') {
+                DOM.myRole.className = 'role-tag role-civilian';
+                DOM.myRole.textContent = '平民';
+                DOM.myWord.classList.remove('hidden');
+                DOM.myWord.querySelector('span').textContent = gameState.wordPair.civilian;
+                DOM.blankTip.classList.add('hidden');
+            } else if (myRole === 'spy') {
+                DOM.myRole.className = 'role-tag role-spy';
+                DOM.myRole.textContent = '卧底';
+                DOM.myWord.classList.remove('hidden');
+                DOM.myWord.querySelector('span').textContent = gameState.wordPair.spy;
+                DOM.blankTip.classList.add('hidden');
+            } else if (myRole === 'blank') {
+                DOM.myRole.className = 'role-tag role-blank';
+                DOM.myRole.textContent = '白板';
+                DOM.myWord.classList.add('hidden');
+                DOM.blankTip.classList.remove('hidden');
+            }
+        }
+
+        // 辅助函数：更新发言列表
+        function updateSpeechList() {
+            DOM.speechList.innerHTML = '';
+            gameState.speeches.forEach(speech => {
+                const item = document.createElement('div');
+                item.className = 'speech-item';
+                item.innerHTML = `
+                    <div class="speech-name">
+                        ${speech.playerName}
+                        <span class="speech-time">${speech.time}</span>
+                    </div>
+                    <div class="speech-content">${speech.content}</div>
+                `;
+                DOM.speechList.appendChild(item);
+            });
+            // 滚动到底部
+            DOM.speechList.scrollTop = DOM.speechList.scrollHeight;
+        }
+
+        // 辅助函数：更新投票区显示状态
+        function updateVoteSection() {
+            const isAlive = gameState.players.find(p => p.id === currentUser.id)?.isAlive;
+            const hasSpoken = gameState.speeches.some(s => s.playerId === currentUser.id);
+            const allSpoken = gameState.speechCount === getAliveCount();
+
+            if (isAlive && hasSpoken && allSpoken) {
+                DOM.voteSection.classList.remove('hidden');
+            } else {
+                DOM.voteSection.classList.add('hidden');
+            }
+        }
+
+        // 辅助函数：更新投票列表
+        function updateVoteList() {
+            DOM.voteList.innerHTML = '';
+            DOM.submitVoteBtn.disabled = true;
+
+            // 只能投存活的其他玩家
+            const targets = gameState.players.filter(p => p.isAlive && p.id !== currentUser.id);
+
+            targets.forEach(player => {
+                const item = document.createElement('div');
+                item.className = 'vote-item';
+                item.dataset.playerId = player.id;
+                item.textContent = player.name;
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.vote-item').forEach(i => i.classList.remove('selected'));
+                    item.classList.add('selected');
+                    DOM.submitVoteBtn.disabled = false;
+                });
+                DOM.voteList.appendChild(item);
+            });
+        }
+
+        // 辅助函数：显示游戏结束弹窗
+        function showGameEnd(result, players) {
+            DOM.winnerText.textContent = result.winner === 'civilian&blank' ? '平民&白板阵营' : '卧底阵营';
+            DOM.winReason.textContent = result.reason;
+            DOM.finalRoleList.innerHTML = '';
+
+            players.forEach(player => {
+                const roleText = player.role === 'civilian' ? '平民' : player.role === 'spy' ? '卧底' : '白板';
+                const color = player.role === 'civilian' ? '#48bb78' : player.role === 'spy' ? '#e53e3e' : '#ed8936';
+                DOM.finalRoleList.innerHTML += `
+                    <div style="margin-bottom: 6px; font-size: 14px;">
+                        ${player.name} - <span style="color: ${color}; font-weight: 600;">${roleText}</span>
+                        （${player.isAlive ? '存活' : '已淘汰'}）
+                    </div>
+                `;
+            });
+
+            DOM.gameEndModal.classList.remove('hidden');
+        }
+
+        // 辅助函数：获取存活玩家数
+        function getAliveCount() {
+            return gameState.players.filter(p => p.isAlive).length;
+        }
+
+        // 初始化
+        initEvents();
+    </script>
+</body>
+</html>
