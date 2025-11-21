@@ -3,1051 +3,2892 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>谁是卧底 - 联机版（稳定修复版）</title>
-    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <title>谁是卧底 - 在线多人推理游戏</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- PeerJS for WebRTC -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6C63FF',
+                        secondary: '#4F46E5',
+                        dark: '#1E1B4B',
+                        light: '#E0E7FF',
+                        accent: '#8B5CF6',
+                        success: '#10B981',
+                        danger: '#EF4444',
+                        warning: '#F59E0B',
+                        info: '#3B82F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-in': 'slideIn 0.5s ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideIn: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                    },
+                    boxShadow: {
+                        'glow': '0 0 15px rgba(108, 99, 255, 0.5)',
+                        'glow-lg': '0 0 25px rgba(108, 99, 255, 0.7)',
+                    },
+                    backdropBlur: {
+                        xs: '2px',
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .text-shadow-lg {
+                text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+            .bg-blur {
+                backdrop-filter: blur(8px);
+            }
+            .bg-glass {
+                background: rgba(30, 27, 75, 0.7);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .scale-hover:hover {
+                transform: scale(1.05);
+            }
+            .rotate-hover:hover {
+                transform: rotate(5deg);
+            }
+        }
+    </style>
     <style>
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            font-family: 'Microsoft YaHei', Arial, sans-serif; 
+        body {
+            background-color: #0F172A;
+            background-image: url('https://p9-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/a7fa289b555943f4997126ff8c894bbb~tplv-a9rns2rl98-image.image?rcl=202511211312134ADD9B69CBD10D346550&rk3s=8e244e95&rrcfp=f06b921b&x-expires=1766294008&x-signature=%2Fz967u4KnmhyRt95tH6vtfz1l%2F0%3D');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, sans-serif;
         }
-        body { 
-            background-color: #f5f7fa; 
-            padding: 15px; 
-            min-height: 100vh; 
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #6C63FF, #8B5CF6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        .container { 
-            max-width: 1000px; 
-            margin: 0 auto; 
+        
+        .card {
+            background: rgba(30, 27, 75, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
         }
-        .card { 
-            background: white; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 15px rgba(0,0,0,0.08); 
-            padding: 20px; 
-            margin-bottom: 20px; 
+        
+        .card:hover {
+            box-shadow: 0 8px 32px rgba(108, 99, 255, 0.2);
+            transform: translateY(-5px);
         }
-        .card-header { 
-            font-size: 18px; 
-            font-weight: 600; 
-            margin-bottom: 15px; 
-            color: #2d3748; 
-            border-bottom: 1px solid #f0f0f0; 
-            padding-bottom: 10px; 
+        
+        .btn-primary {
+            background: linear-gradient(90deg, #6C63FF, #8B5CF6);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 10px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px rgba(108, 99, 255, 0.3);
         }
-        /* 按钮样式优化，提升优先级 */
-        .btn { 
-            padding: 10px 20px; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-size: 16px; 
-            transition: all 0.3s; 
-            display: inline-block; 
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 99, 255, 0.4);
         }
-        .btn-primary { 
-            background-color: #4299e1; 
-            color: white; 
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            padding: 10px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
-        .btn-success { 
-            background-color: #48bb78; 
-            color: white; 
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
         }
-        .btn-danger { 
-            background-color: #e53e3e; 
-            color: white; 
+        
+        .input-primary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            padding: 10px 15px;
+            width: 100%;
+            transition: all 0.3s ease;
         }
-        .btn:disabled { 
-            opacity: 0.6; 
-            cursor: not-allowed; 
+        
+        .input-primary:focus {
+            outline: none;
+            border-color: #6C63FF;
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.2);
         }
-        /* 输入框样式优化，确保显示正常 */
-        .input { 
-            width: 100%; 
-            padding: 14px 16px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            margin-bottom: 15px; 
-            outline: none; 
-            display: block; /* 确保独占一行，不被遮挡 */
-            z-index: 1001; /* 提升层级，避免被其他元素遮挡 */
+        
+        .input-primary::placeholder {
+            color: rgba(255, 255, 255, 0.5);
         }
-        .input:focus { 
-            border-color: #4299e1; 
-            box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1); 
+        
+        .phase-indicator {
+            position: relative;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
         }
-        .flex { 
-            display: flex; 
-            gap: 10px; 
+        
+        .phase-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #6C63FF, #8B5CF6);
+            border-radius: 2px;
+            transition: width 1s ease;
         }
-        .flex-wrap { 
-            flex-wrap: wrap; 
+        
+        .player-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6C63FF, #8B5CF6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 14px rgba(108, 99, 255, 0.3);
+            transition: all 0.3s ease;
         }
-        .justify-between { 
-            justify-content: space-between; 
+        
+        .player-avatar.active {
+            box-shadow: 0 0 0 3px white, 0 0 15px rgba(108, 99, 255, 0.7);
+            transform: scale(1.1);
         }
-        .align-center { 
-            align-items: center; 
+        
+        .player-avatar.eliminated {
+            opacity: 0.5;
+            filter: grayscale(1);
         }
-        .text-center { 
-            text-align: center; 
+        
+        .word-card {
+            perspective: 1000px;
         }
-        .mb-10 { 
-            margin-bottom: 10px; 
+        
+        .word-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
         }
-        .mb-20 { 
-            margin-bottom: 20px; 
+        
+        .word-card.flipped .word-card-inner {
+            transform: rotateY(180deg);
         }
-        .player-card { 
-            background-color: #f0f8fb; 
-            border-radius: 8px; 
-            padding: 15px; 
-            width: calc(20% - 8px); 
-            text-align: center; 
-            transition: all 0.3s; 
+        
+        .word-card-front, .word-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
         }
-        @media (max-width: 768px) {
-            .player-card { 
-                width: calc(33.33% - 7px); 
+        
+        .word-card-front {
+            background: linear-gradient(135deg, rgba(108, 99, 255, 0.2), rgba(139, 92, 246, 0.2));
+            border: 1px solid rgba(108, 99, 255, 0.3);
+        }
+        
+        .word-card-back {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            transform: rotateY(180deg);
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
             }
         }
-        @media (max-width: 480px) {
-            .player-card { 
-                width: calc(50% - 5px); 
+        
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
             }
-            .flex { 
-                flex-direction: column; /* 移动端按钮纵向排列，避免遮挡输入框 */
-            }
-            .btn { 
-                width: 100%; /* 移动端按钮占满宽度 */
+            50% {
+                transform: translateY(-10px);
             }
         }
-        .player-card.alive { 
-            border: 2px solid #48bb78; 
+        
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
         }
-        .player-card.dead { 
-            border: 2px solid #e53e3e; 
-            opacity: 0.7; 
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
         }
-        .player-card.you { 
-            background-color: #e8f4f8; 
-            border: 2px solid #4299e1; 
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
         }
-        .speech-list { 
-            max-height: 300px; 
-            overflow-y: auto; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 8px; 
-            padding: 15px; 
-            margin-bottom: 15px; 
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(108, 99, 255, 0.5);
+            border-radius: 3px;
         }
-        .speech-item { 
-            margin-bottom: 12px; 
-            padding-bottom: 12px; 
-            border-bottom: 1px solid #f7fafc; 
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(108, 99, 255, 0.7);
         }
-        .speech-name { 
-            font-weight: 600; 
-            color: #4299e1; 
-            margin-bottom: 4px; 
+        
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            border-radius: 50%;
+            animation: confetti-fall 3s ease-in-out forwards;
         }
-        .speech-time { 
-            font-size: 12px; 
-            color: #999; 
-            margin-left: 8px; 
-        }
-        .speech-content { 
-            color: #4a5568; 
-        }
-        .vote-item { 
-            background-color: #f0f8fb; 
-            border-radius: 20px; 
-            padding: 8px 16px; 
-            cursor: pointer; 
-            transition: all 0.3s; 
-        }
-        .vote-item.selected { 
-            background-color: #4299e1; 
-            color: white; 
-        }
-        /* 弹窗样式优化，确保输入框不被遮挡 */
-        .modal { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0,0,0,0.5); 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            z-index: 1000; /* 弹窗层级最高 */
-        }
-        .modal-content { 
-            background: white; 
-            border-radius: 12px; 
-            padding: 30px; 
-            width: 90%; 
-            max-width: 400px; /* 缩小弹窗最大宽度，避免移动端适配问题 */
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
-        }
-        .hidden { 
-            display: none !important; /* 强制隐藏，避免样式冲突 */
-        }
-        .role-tag { 
-            display: inline-block; 
-            padding: 5px 10px; 
-            border-radius: 6px; 
-            color: white; 
-            font-weight: 600; 
-        }
-        .role-civilian { 
-            background-color: #48bb78; 
-        }
-        .role-spy { 
-            background-color: #e53e3e; 
-        }
-        .role-blank { 
-            background-color: #ed8936; 
-        }
-        .page { 
-            animation: fadeIn 0.3s ease; 
-        }
-        .error-tip { 
-            color: #e53e3e; 
-            font-size: 14px; 
-            margin-top: -10px; 
-            margin-bottom: 15px; 
-            display: none; 
-            text-align: left; 
-        }
-        .loading-tip { 
-            color: #4299e1; 
-            font-size: 16px; 
-            text-align: center; 
-            margin: 15px 0; 
-        }
-        @keyframes fadeIn {
-            from { 
-                opacity: 0; 
-                transform: translateY(10px); 
+        
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-100vh) rotate(0deg);
+                opacity: 1;
             }
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
             }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <!-- 房间入口页 -->
-        <div id="room-entry" class="page">
-            <div class="card">
-                <div class="card-header">谁是卧底 - 联机版（稳定修复版）</div>
-                <input type="text" id="player-name" class="input" placeholder="请输入你的昵称（最多8字）" maxlength="8">
-                <div id="name-error" class="error-tip">请输入有效的昵称！</div>
-                <div class="flex">
-                    <button class="btn btn-primary" id="create-room-btn">创建房间</button>
-                    <button class="btn btn-success" id="join-room-btn">加入房间</button>
-                </div>
-                <div id="create-error" class="error-tip">创建房间失败，请重试！</div>
+<body class="text-white">
+    <!-- 加载屏幕 -->
+    <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-dark">
+        <div class="text-center">
+            <img src="https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/5db267090b4e41559f53fc615dc103c3~tplv-a9rns2rl98-image.image?rcl=202511211312134ADD9B69CBD10D346550&rk3s=8e244e95&rrcfp=f06b921b&x-expires=1766294007&x-signature=GGF7UA2tu5HJrBDMdsEJLFeTZcA%3D" alt="谁是卧底" class="w-40 h-40 mx-auto mb-4 animate-float">
+            <h1 class="text-3xl font-bold gradient-text mb-2">谁是卧底</h1>
+            <p class="text-light mb-6">加载中，请稍候...</p>
+            <div class="w-64 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
+                <div id="loading-bar" class="h-full bg-gradient-to-r from-primary to-accent" style="width: 0%"></div>
             </div>
         </div>
+    </div>
 
-        <!-- 加入房间弹窗（独立DOM，确保加载优先级） -->
-        <div id="join-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="card-header mb-20">加入房间</div>
-                <!-- 输入框单独放置，确保不被其他元素挤压 -->
-                <div style="margin-bottom: 15px;">
-                    <input type="text" id="room-id-input" class="input" placeholder="请输入6位房间号" maxlength="6">
-                </div>
-                <div id="room-id-error" class="error-tip">请输入6位数字房间号！</div>
-                <div id="join-loading" class="loading-tip hidden">正在连接房间...请稍候</div>
-                <!-- 按钮区域用flex，移动端自动纵向排列 -->
-                <div class="flex" style="margin-top: 20px;">
-                    <button class="btn btn-danger" id="cancel-join-btn">取消</button>
-                    <button class="btn btn-primary" id="confirm-join-btn">确认加入</button>
-                </div>
-                <div id="join-error" class="error-tip text-center" style="margin-top: 15px;">房间不存在或已开始游戏！</div>
-                <div id="join-timeout-error" class="error-tip text-center" style="margin-top: 15px; display: none;">连接超时，请检查房间号或提醒房主进入房间</div>
+    <!-- 主容器 -->
+    <div id="app" class="container mx-auto px-4 py-8 max-w-6xl hidden">
+        <!-- 导航栏 -->
+        <nav class="flex justify-between items-center mb-8">
+            <div class="flex items-center">
+                <img src="https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/5db267090b4e41559f53fc615dc103c3~tplv-a9rns2rl98-image.image?rcl=202511211312134ADD9B69CBD10D346550&rk3s=8e244e95&rrcfp=f06b921b&x-expires=1766294007&x-signature=GGF7UA2tu5HJrBDMdsEJLFeTZcA%3D" alt="谁是卧底" class="w-10 h-10 mr-3">
+                <h1 class="text-2xl font-bold gradient-text">谁是卧底</h1>
             </div>
-        </div>
-
-        <!-- 房间创建成功弹窗 -->
-        <div id="create-success-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="card-header mb-20">房间创建成功</div>
-                <p class="mb-10">你的房间号：<span id="created-room-id" style="font-size: 24px; color: #4299e1; font-weight: 600;"></span></p>
-                <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，点击下方按钮进入房间等待</p>
-                <button class="btn btn-primary w-100" id="enter-room-btn">进入游戏房间</button>
-            </div>
-        </div>
-
-        <!-- 游戏房间页 -->
-        <div id="game-room" class="page hidden">
-            <div class="card">
-                <div class="flex justify-between align-center mb-20">
-                    <h2>房间号：<span id="current-room-id"></span> <span id="game-status" style="color: #48bb78; font-size: 16px; font-weight: normal;">（等待中）</span></h2>
-                    <button class="btn btn-danger" id="leave-room-btn">离开房间</button>
+            <div class="flex items-center space-x-4">
+                <button id="settings-btn" class="btn-secondary flex items-center">
+                    <i class="fa fa-cog mr-2"></i> 设置
+                </button>
+                <div id="user-info" class="hidden items-center">
+                    <span id="user-nickname" class="mr-2">玩家</span>
+                    <div class="player-avatar">玩</div>
                 </div>
+            </div>
+        </nav>
 
-                <!-- 玩家列表 -->
-                <div class="card-header">玩家列表（<span id="player-count">0</span>/12）</div>
-                <div id="player-list" class="flex flex-wrap gap-10 mb-20"></div>
-                <button id="start-game-btn" class="btn btn-primary hidden" disabled>开始游戏（需4人以上）</button>
-
-                <!-- 游戏内容区（游戏开始后显示） -->
-                <div id="game-content" class="hidden">
-                    <!-- 个人身份信息 -->
-                    <div class="card mb-20">
-                        <div class="card-header">你的身份</div>
-                        <p class="mb-10">身份：<span id="my-role" class="role-tag"></span></p>
-                        <p id="my-word" class="mb-10 hidden">词语：<span style="font-size: 18px; color: #48bb78; font-weight: 600;"></span></p>
-                        <p id="blank-tip" class="mb-10 hidden" style="color: #ed8936;">提示：你没有词语，请模仿他人发言隐藏身份</p>
+        <!-- 页面内容 -->
+        <div id="page-content">
+            <!-- 首页 -->
+            <div id="home-page" class="animate-fade-in">
+                <div class="flex flex-col md:flex-row gap-8">
+                    <!-- 左侧：游戏介绍 -->
+                    <div class="md:w-1/2">
+                        <div class="card p-6 h-full">
+                            <h2 class="text-2xl font-bold mb-4 gradient-text">游戏介绍</h2>
+                            <p class="mb-4">《谁是卧底》是一款多人推理游戏，玩家们将被分配不同的词语，其中大多数人获得相同的词语，而少数人（卧底）获得相关但不同的词语。</p>
+                            <p class="mb-4">通过描述自己的词语并观察他人的描述，平民需要找出卧底，而卧底则需要隐藏自己的身份。</p>
+                            <div class="mt-6">
+                                <h3 class="text-xl font-semibold mb-2">游戏规则</h3>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li>4-12人参与游戏，系统随机分配角色</li>
+                                    <li>平民获得相同词语，卧底获得相关但不同的词语</li>
+                                    <li>轮流描述自己的词语（不能直接说出词语）</li>
+                                    <li>投票选出怀疑的卧底，得票最多者出局</li>
+                                    <li>卧底全部出局则平民胜利；卧底数量≥平民数量则卧底胜利</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- 发言区 -->
-                    <div class="card mb-20">
-                        <div class="card-header">发言记录</div>
-                        <div id="speech-list" class="speech-list"></div>
-                        <input type="text" id="speech-input" class="input" placeholder="请输入发言（1-3句话，不能包含词语中的字）" maxlength="100">
-                        <div id="speech-error" class="error-tip">发言不能包含词语中的字！</div>
-                        <button class="btn btn-success" id="submit-speech-btn">提交发言</button>
+                    
+                    <!-- 右侧：开始游戏 -->
+                    <div class="md:w-1/2">
+                        <div class="card p-6 h-full flex flex-col">
+                            <h2 class="text-2xl font-bold mb-6 gradient-text">开始游戏</h2>
+                            
+                            <div class="mb-6">
+                                <label for="nickname" class="block mb-2 font-medium">输入昵称</label>
+                                <input type="text" id="nickname" class="input-primary" placeholder="请输入您的昵称（2-6字）" maxlength="6">
+                                <p id="nickname-error" class="text-danger text-sm mt-1 hidden">昵称长度应为2-6个字符</p>
+                            </div>
+                            
+                            <div class="flex flex-col space-y-4 mb-6">
+                                <button id="create-room-btn" class="btn-primary py-3 text-lg">
+                                    <i class="fa fa-plus-circle mr-2"></i> 创建房间
+                                </button>
+                                <div class="relative">
+                                    <input type="text" id="room-id" class="input-primary pr-32" placeholder="输入房间ID">
+                                    <button id="join-room-btn" class="btn-secondary absolute right-2 top-1/2 transform -translate-y-1/2">
+                                        加入房间
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-auto">
+                                <h3 class="text-lg font-semibold mb-2">自定义词语</h3>
+                                <p class="text-sm text-gray-300 mb-3">创建房间时可以设置自定义词语，增加游戏趣味性</p>
+                                <button id="custom-words-btn" class="btn-secondary w-full">
+                                    <i class="fa fa-list-alt mr-2"></i> 管理自定义词语
+                                </button>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- 投票区 -->
-                    <div id="vote-section" class="card hidden">
-                        <div class="card-header">投票环节</div>
-                        <p class="mb-10">选择你怀疑的玩家：</p>
-                        <div id="vote-list" class="flex flex-wrap gap-10 mb-15"></div>
-                        <button class="btn btn-primary" id="submit-vote-btn" disabled>提交投票</button>
+                </div>
+                
+                <!-- 最近游戏记录 -->
+                <div class="mt-8">
+                    <div class="card p-6">
+                        <h2 class="text-xl font-bold mb-4 gradient-text">最近游戏记录</h2>
+                        <div id="game-history" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="text-center text-gray-400 py-8 col-span-full">
+                                <i class="fa fa-history text-3xl mb-2"></i>
+                                <p>暂无游戏记录</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 游戏结束弹窗 -->
-        <div id="game-end-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="card-header mb-20">游戏结束</div>
-                <p class="mb-10">获胜阵营：<span id="winner-text" style="font-size: 20px; color: #ed8936; font-weight: 600;"></span></p>
-                <p class="mb-10">获胜原因：<span id="win-reason"></span></p>
-                <div class="mb-20">
-                    <p class="mb-10">最终身份列表：</p>
-                    <div id="final-role-list"></div>
+            <!-- 房间页面 -->
+            <div id="room-page" class="hidden animate-fade-in">
+                <div class="card p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold gradient-text">房间 <span id="current-room-id" class="text-white">XXXXXX</span></h2>
+                        <div>
+                            <button id="copy-room-id-btn" class="btn-secondary mr-2">
+                                <i class="fa fa-copy mr-1"></i> 复制ID
+                            </button>
+                            <button id="leave-room-btn" class="btn-secondary">
+                                <i class="fa fa-sign-out mr-1"></i> 离开
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-indicator mb-6">
+                        <div id="phase-progress" class="phase-progress" style="width: 0%"></div>
+                    </div>
+                    
+                    <div id="room-status" class="text-center mb-6">
+                        <h3 class="text-xl font-semibold mb-2">等待玩家加入</h3>
+                        <p class="text-gray-300">当前人数: <span id="player-count">1</span>/12</p>
+                    </div>
+                    
+                    <!-- 玩家列表 -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">玩家列表</h3>
+                        <div id="players-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            <!-- 玩家列表将动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 游戏设置 -->
+                    <div id="game-settings" class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">游戏设置</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block mb-2 font-medium">卧底数量</label>
+                                <select id="undercover-count" class="input-primary">
+                                    <option value="1">1个卧底</option>
+                                    <option value="2">2个卧底</option>
+                                    <option value="3">3个卧底</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-2 font-medium">白板角色</label>
+                                <select id="whiteboard-count" class="input-primary">
+                                    <option value="0">不使用白板</option>
+                                    <option value="1">1个白板</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-2 font-medium">描述时间</label>
+                                <select id="describe-time" class="input-primary">
+                                    <option value="30">30秒</option>
+                                    <option value="45">45秒</option>
+                                    <option value="60">60秒</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-2 font-medium">投票时间</label>
+                                <select id="vote-time" class="input-primary">
+                                    <option value="20">20秒</option>
+                                    <option value="30">30秒</option>
+                                    <option value="45">45秒</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义词语设置 -->
+                    <div id="custom-words-settings" class="mb-6">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-lg font-semibold">自定义词语</h3>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="use-custom-words" class="sr-only peer">
+                                <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                <span class="ml-3 text-sm font-medium">启用</span>
+                            </label>
+                        </div>
+                        <div id="custom-words-list" class="max-h-40 overflow-y-auto custom-scrollbar">
+                            <!-- 自定义词语列表将动态生成 -->
+                            <p class="text-gray-400 text-center py-4">暂无自定义词语</p>
+                        </div>
+                        <button id="add-custom-words-btn" class="btn-secondary w-full mt-3">
+                            <i class="fa fa-plus mr-1"></i> 添加自定义词语
+                        </button>
+                    </div>
+                    
+                    <!-- 房主控制区 -->
+                    <div id="host-controls" class="hidden">
+                        <button id="start-game-btn" class="btn-primary w-full py-3 text-lg">
+                            <i class="fa fa-play-circle mr-2"></i> 开始游戏
+                        </button>
+                    </div>
+                    
+                    <!-- 玩家控制区 -->
+                    <div id="player-controls">
+                        <button id="ready-btn" class="btn-primary w-full py-3 text-lg">
+                            <i class="fa fa-check-circle mr-2"></i> 准备
+                        </button>
+                    </div>
                 </div>
-                <div class="flex justify-between">
-                    <button class="btn btn-success" id="restart-game-btn">再来一局</button>
-                    <button class="btn btn-danger" id="back-home-btn">返回首页</button>
+                
+                <!-- 聊天区域 -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">聊天区</h3>
+                    <div id="chat-messages" class="h-64 overflow-y-auto custom-scrollbar mb-4 p-3 bg-dark rounded-lg">
+                        <!-- 聊天消息将动态生成 -->
+                        <div class="text-center text-gray-400 py-4">
+                            <p>开始聊天吧</p>
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <input type="text" id="chat-input" class="input-primary mr-2" placeholder="输入消息...">
+                        <button id="send-chat-btn" class="btn-primary">
+                            <i class="fa fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 游戏页面 -->
+            <div id="game-page" class="hidden animate-fade-in">
+                <div class="card p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">游戏进行中</h2>
+                        <div>
+                            <span id="current-phase" class="px-3 py-1 rounded-full bg-primary text-white text-sm font-medium">描述阶段</span>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-indicator mb-6">
+                        <div id="game-phase-progress" class="phase-progress" style="width: 0%"></div>
+                    </div>
+                    
+                    <!-- 游戏信息 -->
+                    <div id="game-info" class="mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <span class="text-gray-300">当前回合:</span>
+                                <span id="current-round" class="ml-2 font-semibold">1</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-300">剩余玩家:</span>
+                                <span id="remaining-players" class="ml-2 font-semibold">8</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 玩家状态 -->
+                        <div id="game-players" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                            <!-- 玩家状态将动态生成 -->
+                        </div>
+                        
+                        <!-- 词语卡片 -->
+                        <div class="text-center mb-6">
+                            <h3 class="text-lg font-semibold mb-3">你的词语</h3>
+                            <div class="word-card mx-auto" style="width: 200px; height: 100px;">
+                                <div class="word-card-inner">
+                                    <div class="word-card-front">
+                                        <span id="player-word" class="text-2xl font-bold">?</span>
+                                    </div>
+                                    <div class="word-card-back">
+                                        <span id="player-role" class="text-2xl font-bold">平民</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-300 mt-2">请记住你的词语，不要让其他人发现</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 描述区域 -->
+                    <div id="describe-area" class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">描述</h3>
+                        <p id="describe-hint" class="mb-3 text-gray-300">轮到你描述了，请用一句话描述你的词语（不能直接说出词语）</p>
+                        <textarea id="describe-input" class="input-primary w-full h-24 mb-3" placeholder="输入你的描述..." maxlength="100"></textarea>
+                        <div class="flex justify-between items-center">
+                            <span id="describe-timer" class="text-sm text-gray-300">剩余时间: 30秒</span>
+                            <button id="submit-describe-btn" class="btn-primary">
+                                提交描述
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 投票区域 -->
+                    <div id="vote-area" class="mb-6 hidden">
+                        <h3 class="text-lg font-semibold mb-3">投票</h3>
+                        <p id="vote-hint" class="mb-3 text-gray-300">请投票选出你认为是卧底的玩家</p>
+                        <div id="vote-players" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
+                            <!-- 投票玩家列表将动态生成 -->
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="vote-timer" class="text-sm text-gray-300">剩余时间: 30秒</span>
+                            <button id="submit-vote-btn" class="btn-primary" disabled>
+                                提交投票
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 结果区域 -->
+                    <div id="result-area" class="mb-6 hidden">
+                        <h3 class="text-lg font-semibold mb-3">投票结果</h3>
+                        <div id="vote-results" class="mb-4">
+                            <!-- 投票结果将动态生成 -->
+                        </div>
+                        <div id="elimination-result" class="text-center p-4 rounded-lg bg-dark mb-4">
+                            <p class="text-xl font-semibold">玩家 <span id="eliminated-player">XXX</span> 被淘汰</p>
+                            <p class="text-lg mt-2">身份: <span id="eliminated-role" class="text-primary font-semibold">平民</span></p>
+                        </div>
+                        <button id="continue-game-btn" class="btn-primary w-full">
+                            继续游戏
+                        </button>
+                    </div>
+                    
+                    <!-- 游戏结束区域 -->
+                    <div id="game-over-area" class="mb-6 hidden">
+                        <div class="text-center">
+                            <h3 class="text-2xl font-bold mb-3">游戏结束</h3>
+                            <div id="game-winner" class="text-3xl font-bold mb-6 text-success">平民胜利！</div>
+                            
+                            <div class="bg-dark p-4 rounded-lg mb-6">
+                                <h4 class="text-lg font-semibold mb-2">词语揭晓</h4>
+                                <div class="flex justify-center items-center gap-8">
+                                    <div class="text-center">
+                                        <p class="text-gray-300 mb-1">平民词语</p>
+                                        <p id="civilian-word" class="text-xl font-bold">苹果</p>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-gray-300 mb-1">卧底词语</p>
+                                        <p id="undercover-word" class="text-xl font-bold">橙子</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-6">
+                                <h4 class="text-lg font-semibold mb-2">玩家身份</h4>
+                                <div id="final-roles" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    <!-- 玩家身份将动态生成 -->
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                                <button id="play-again-btn" class="btn-primary">
+                                    <i class="fa fa-refresh mr-2"></i> 再来一局
+                                </button>
+                                <button id="back-to-home-btn" class="btn-secondary">
+                                    <i class="fa fa-home mr-2"></i> 返回首页
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 聊天区域 -->
+                <div class="card p-6">
+                    <h3 class="text-lg font-semibold mb-3">游戏聊天</h3>
+                    <div id="game-chat-messages" class="h-64 overflow-y-auto custom-scrollbar mb-4 p-3 bg-dark rounded-lg">
+                        <!-- 聊天消息将动态生成 -->
+                    </div>
+                    <div class="flex">
+                        <input type="text" id="game-chat-input" class="input-primary mr-2" placeholder="输入消息...">
+                        <button id="send-game-chat-btn" class="btn-primary">
+                            <i class="fa fa-paper-plane"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 模态框 -->
+    <!-- 自定义词语模态框 -->
+    <div id="custom-words-modal" class="fixed inset-0 z-40 hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-75"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold gradient-text">管理自定义词语</h2>
+                    <button id="close-custom-words-modal" class="text-gray-400 hover:text-white">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-gray-300 mb-3">添加自定义词语对，增加游戏趣味性。每个词语对应关系应该有一定的相似性和差异性。</p>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block mb-1 text-sm font-medium">平民词语</label>
+                            <input type="text" id="civilian-word-input" class="input-primary" placeholder="输入平民词语">
+                        </div>
+                        <div>
+                            <label class="block mb-1 text-sm font-medium">卧底词语</label>
+                            <input type="text" id="undercover-word-input" class="input-primary" placeholder="输入卧底词语">
+                        </div>
+                    </div>
+                    
+                    <button id="add-word-pair-btn" class="btn-primary w-full mb-4">
+                        <i class="fa fa-plus mr-1"></i> 添加词语对
+                    </button>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">已添加的词语对</h3>
+                    <div id="word-pairs-list" class="max-h-80 overflow-y-auto custom-scrollbar">
+                        <!-- 词语对列表将动态生成 -->
+                        <p class="text-gray-400 text-center py-4">暂无自定义词语</p>
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex justify-between">
+                    <button id="clear-all-words-btn" class="btn-secondary">
+                        <i class="fa fa-trash mr-1"></i> 清空所有
+                    </button>
+                    <button id="import-words-btn" class="btn-secondary">
+                        <i class="fa fa-upload mr-1"></i> 导入词语
+                    </button>
+                    <button id="export-words-btn" class="btn-secondary">
+                        <i class="fa fa-download mr-1"></i> 导出词语
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div id="settings-modal" class="fixed inset-0 z-40 hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-75"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold gradient-text">设置</h2>
+                    <button id="close-settings-modal" class="text-gray-400 hover:text-white">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block mb-2 font-medium">音效</label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="sound-toggle" class="sr-only peer" checked>
+                            <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            <span class="ml-3 text-sm font-medium">启用音效</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2 font-medium">背景音乐</label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="music-toggle" class="sr-only peer" checked>
+                            <div class="relative w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            <span class="ml-3 text-sm font-medium">启用背景音乐</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2 font-medium">音量</label>
+                        <input type="range" id="volume-slider" class="w-full" min="0" max="100" value="70">
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2 font-medium">主题</label>
+                        <select id="theme-select" class="input-primary">
+                            <option value="dark">深色主题</option>
+                            <option value="light">浅色主题</option>
+                            <option value="auto">跟随系统</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button id="save-settings-btn" class="btn-primary w-full mt-6">
+                    保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加自定义词语模态框 -->
+    <div id="add-custom-words-modal" class="fixed inset-0 z-40 hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-75"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold gradient-text">添加自定义词语</h2>
+                    <button id="close-add-custom-words-modal" class="text-gray-400 hover:text-white">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-gray-300 mb-3">为当前游戏添加自定义词语对。每个词语对应关系应该有一定的相似性和差异性。</p>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block mb-1 text-sm font-medium">平民词语</label>
+                            <input type="text" id="add-civilian-word-input" class="input-primary" placeholder="输入平民词语">
+                        </div>
+                        <div>
+                            <label class="block mb-1 text-sm font-medium">卧底词语</label>
+                            <input type="text" id="add-undercover-word-input" class="input-primary" placeholder="输入卧底词语">
+                        </div>
+                    </div>
+                    
+                    <button id="add-game-word-pair-btn" class="btn-primary w-full mb-4">
+                        <i class="fa fa-plus mr-1"></i> 添加词语对
+                    </button>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">当前游戏词语对</h3>
+                    <div id="game-word-pairs-list" class="max-h-60 overflow-y-auto custom-scrollbar">
+                        <!-- 游戏词语对列表将动态生成 -->
+                        <p class="text-gray-400 text-center py-4">暂无自定义词语</p>
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex justify-end">
+                    <button id="confirm-custom-words-btn" class="btn-primary">
+                        确认
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="fixed bottom-4 right-4 z-50 bg-glass px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center">
+        <i id="toast-icon" class="fa fa-check-circle text-success mr-2"></i>
+        <span id="toast-message">操作成功</span>
+    </div>
+
     <script>
-        // 全局状态（不依赖外部数据库，用 Pusher 实时同步）
-        let currentUser = {
-            id: Math.random().toString(36).substr(2, 9), // 随机用户ID
-            name: ''
+        // 游戏数据
+        const gameData = {
+            // 用户信息
+            userId: '',
+            nickname: '',
+            
+            // 房间信息
+            roomId: '',
+            isHost: false,
+            players: [],
+            gameWordPairs: [],
+            
+            // 游戏状态
+            isGameStarted: false,
+            currentPhase: 'waiting', // waiting, describing, voting, result, gameOver
+            currentRound: 1,
+            currentPlayerIndex: 0,
+            playerWord: '',
+            playerRole: '', // civilian, undercover, whiteboard
+            descriptions: {},
+            votes: {},
+            eliminatedPlayers: [],
+            
+            // 设置
+            settings: {
+                soundEnabled: true,
+                musicEnabled: true,
+                volume: 70,
+                theme: 'dark',
+                undercoverCount: 1,
+                whiteboardCount: 0,
+                describeTime: 30,
+                voteTime: 30,
+                useCustomWords: false
+            },
+            
+            // 词语库
+            wordPairs: [
+                { civilian: '苹果', undercover: '橙子' },
+                { civilian: '电脑', undercover: '电视' },
+                { civilian: '咖啡', undercover: '茶' },
+                { civilian: '足球', undercover: '篮球' },
+                { civilian: '夏天', undercover: '冬天' },
+                { civilian: '猫', undercover: '狗' },
+                { civilian: '牛奶', undercover: '豆浆' },
+                { civilian: '手机', undercover: '平板' },
+                { civilian: '米饭', undercover: '面条' },
+                { civilian: '飞机', undercover: '火车' },
+                { civilian: '铅笔', undercover: '钢笔' },
+                { civilian: '沙发', undercover: '椅子' },
+                { civilian: '电影', undercover: '电视剧' },
+                { civilian: '游泳', undercover: '跑步' },
+                { civilian: '雨伞', undercover: '雨衣' },
+                { civilian: '吉他', undercover: '钢琴' },
+                { civilian: '太阳', undercover: '月亮' },
+                { civilian: '书本', undercover: '杂志' },
+                { civilian: '冰箱', undercover: '空调' },
+                { civilian: '自行车', undercover: '电动车' }
+            ],
+            
+            // 自定义词语库
+            customWordPairs: [],
+            
+            // 游戏历史
+            gameHistory: [],
+            
+            // WebSocket连接
+            peer: null,
+            connections: {},
+            
+            // 计时器
+            timers: {
+                phase: null,
+                describe: null,
+                vote: null
+            }
         };
-        let currentRoom = { id: '', isHost: false };
-        let gameState = {
-            players: [], // { id, name, role, isAlive }
-            wordPair: { civilian: '', spy: '' },
-            status: 'waiting', // waiting/playing/ended
-            speeches: [], // { playerId, playerName, content, time }
-            votes: {}, // { voterId: targetId }
-            speechCount: 0 // 已发言人数
-        };
-        // 加入房间超时计时器
-        let joinRoomTimer = null;
 
-        // 词语库（新增更多词语对，提升游戏多样性）
-        const wordLibrary = [
-            { civilian: "奶茶", spy: "果汁" },
-            { civilian: "手机", spy: "平板" },
-            { civilian: "火锅", spy: "烧烤" },
-            { civilian: "猫", spy: "狗" },
-            { civilian: "电影", spy: "电视剧" },
-            { civilian: "米饭", spy: "面条" },
-            { civilian: "篮球", spy: "足球" },
-            { civilian: "耳机", spy: "音箱" },
-            { civilian: "雨伞", spy: "雨衣" },
-            { civilian: "火车", spy: "高铁" },
-            { civilian: "钢笔", spy: "中性笔" },
-            { civilian: "面包", spy: "蛋糕" },
-            { civilian: "拖鞋", spy: "凉鞋" },
-            { civilian: "台灯", spy: "吊灯" },
-            { civilian: "自行车", spy: "电动车" },
-            { civilian: "咖啡", spy: "茶" },
-            { civilian: "电脑", spy: "笔记本" },
-            { civilian: "沙发", spy: "椅子" },
-            { civilian: "口红", spy: "唇釉" },
-            { civilian: "跑步", spy: "散步" }
-        ];
-
-        // DOM 元素缓存（确保提前获取，避免加载延迟）
-        const DOM = {
+        // DOM元素
+        const elements = {
+            // 加载屏幕
+            loadingScreen: document.getElementById('loading-screen'),
+            loadingBar: document.getElementById('loading-bar'),
+            
             // 页面
-            roomEntryPage: document.getElementById('room-entry'),
-            gameRoomPage: document.getElementById('game-room'),
-            // 弹窗
-            joinModal: document.getElementById('join-modal'),
-            createSuccessModal: document.getElementById('create-success-modal'),
-            gameEndModal: document.getElementById('game-end-modal'),
-            // 输入框（重点确保获取到）
-            playerName: document.getElementById('player-name'),
-            roomIdInput: document.getElementById('room-id-input'),
-            speechInput: document.getElementById('speech-input'),
-            // 错误提示
-            nameError: document.getElementById('name-error'),
-            createError: document.getElementById('create-error'),
-            roomIdError: document.getElementById('room-id-error'),
-            joinError: document.getElementById('join-error'),
-            joinTimeoutError: document.getElementById('join-timeout-error'),
-            speechError: document.getElementById('speech-error'),
-            // 加载提示
-            joinLoading: document.getElementById('join-loading'),
-            // 按钮
+            app: document.getElementById('app'),
+            homePage: document.getElementById('home-page'),
+            roomPage: document.getElementById('room-page'),
+            gamePage: document.getElementById('game-page'),
+            
+            // 首页元素
+            nicknameInput: document.getElementById('nickname'),
+            nicknameError: document.getElementById('nickname-error'),
             createRoomBtn: document.getElementById('create-room-btn'),
             joinRoomBtn: document.getElementById('join-room-btn'),
-            cancelJoinBtn: document.getElementById('cancel-join-btn'),
-            confirmJoinBtn: document.getElementById('confirm-join-btn'),
-            enterRoomBtn: document.getElementById('enter-room-btn'),
-            leaveRoomBtn: document.getElementById('leave-room-btn'),
-            startGameBtn: document.getElementById('start-game-btn'),
-            submitSpeechBtn: document.getElementById('submit-speech-btn'),
-            submitVoteBtn: document.getElementById('submit-vote-btn'),
-            restartGameBtn: document.getElementById('restart-game-btn'),
-            backHomeBtn: document.getElementById('back-home-btn'),
-            // 显示元素
-            createdRoomId: document.getElementById('created-room-id'),
+            roomIdInput: document.getElementById('room-id'),
+            customWordsBtn: document.getElementById('custom-words-btn'),
+            gameHistory: document.getElementById('game-history'),
+            
+            // 房间页面元素
             currentRoomId: document.getElementById('current-room-id'),
-            gameStatus: document.getElementById('game-status'),
+            copyRoomIdBtn: document.getElementById('copy-room-id-btn'),
+            leaveRoomBtn: document.getElementById('leave-room-btn'),
+            roomStatus: document.getElementById('room-status'),
             playerCount: document.getElementById('player-count'),
-            playerList: document.getElementById('player-list'),
-            gameContent: document.getElementById('game-content'),
-            myRole: document.getElementById('my-role'),
-            myWord: document.getElementById('my-word'),
-            blankTip: document.getElementById('blank-tip'),
-            speechList: document.getElementById('speech-list'),
-            voteSection: document.getElementById('vote-section'),
-            voteList: document.getElementById('vote-list'),
-            winnerText: document.getElementById('winner-text'),
-            winReason: document.getElementById('win-reason'),
-            finalRoleList: document.getElementById('final-role-list')
+            playersList: document.getElementById('players-list'),
+            hostControls: document.getElementById('host-controls'),
+            playerControls: document.getElementById('player-controls'),
+            startGameBtn: document.getElementById('start-game-btn'),
+            readyBtn: document.getElementById('ready-btn'),
+            chatMessages: document.getElementById('chat-messages'),
+            chatInput: document.getElementById('chat-input'),
+            sendChatBtn: document.getElementById('send-chat-btn'),
+            undercoverCount: document.getElementById('undercover-count'),
+            whiteboardCount: document.getElementById('whiteboard-count'),
+            describeTime: document.getElementById('describe-time'),
+            voteTime: document.getElementById('vote-time'),
+            useCustomWords: document.getElementById('use-custom-words'),
+            customWordsList: document.getElementById('custom-words-list'),
+            addCustomWordsBtn: document.getElementById('add-custom-words-btn'),
+            
+            // 游戏页面元素
+            currentPhase: document.getElementById('current-phase'),
+            currentRound: document.getElementById('current-round'),
+            remainingPlayers: document.getElementById('remaining-players'),
+            gamePlayers: document.getElementById('game-players'),
+            playerWord: document.getElementById('player-word'),
+            playerRole: document.getElementById('player-role'),
+            describeArea: document.getElementById('describe-area'),
+            describeHint: document.getElementById('describe-hint'),
+            describeInput: document.getElementById('describe-input'),
+            describeTimer: document.getElementById('describe-timer'),
+            submitDescribeBtn: document.getElementById('submit-describe-btn'),
+            voteArea: document.getElementById('vote-area'),
+            voteHint: document.getElementById('vote-hint'),
+            votePlayers: document.getElementById('vote-players'),
+            voteTimer: document.getElementById('vote-timer'),
+            submitVoteBtn: document.getElementById('submit-vote-btn'),
+            resultArea: document.getElementById('result-area'),
+            voteResults: document.getElementById('vote-results'),
+            eliminationResult: document.getElementById('elimination-result'),
+            eliminatedPlayer: document.getElementById('eliminated-player'),
+            eliminatedRole: document.getElementById('eliminated-role'),
+            continueGameBtn: document.getElementById('continue-game-btn'),
+            gameOverArea: document.getElementById('game-over-area'),
+            gameWinner: document.getElementById('game-winner'),
+            civilianWord: document.getElementById('civilian-word'),
+            undercoverWord: document.getElementById('undercover-word'),
+            finalRoles: document.getElementById('final-roles'),
+            playAgainBtn: document.getElementById('play-again-btn'),
+            backToHomeBtn: document.getElementById('back-to-home-btn'),
+            gameChatMessages: document.getElementById('game-chat-messages'),
+            gameChatInput: document.getElementById('game-chat-input'),
+            sendGameChatBtn: document.getElementById('send-game-chat-btn'),
+            
+            // 模态框
+            customWordsModal: document.getElementById('custom-words-modal'),
+            closeCustomWordsModal: document.getElementById('close-custom-words-modal'),
+            civilianWordInput: document.getElementById('civilian-word-input'),
+            undercoverWordInput: document.getElementById('undercover-word-input'),
+            addWordPairBtn: document.getElementById('add-word-pair-btn'),
+            wordPairsList: document.getElementById('word-pairs-list'),
+            clearAllWordsBtn: document.getElementById('clear-all-words-btn'),
+            importWordsBtn: document.getElementById('import-words-btn'),
+            exportWordsBtn: document.getElementById('export-words-btn'),
+            
+            settingsModal: document.getElementById('settings-modal'),
+            closeSettingsModal: document.getElementById('close-settings-modal'),
+            soundToggle: document.getElementById('sound-toggle'),
+            musicToggle: document.getElementById('music-toggle'),
+            volumeSlider: document.getElementById('volume-slider'),
+            themeSelect: document.getElementById('theme-select'),
+            saveSettingsBtn: document.getElementById('save-settings-btn'),
+            
+            addCustomWordsModal: document.getElementById('add-custom-words-modal'),
+            closeAddCustomWordsModal: document.getElementById('close-add-custom-words-modal'),
+            addCivilianWordInput: document.getElementById('add-civilian-word-input'),
+            addUndercoverWordInput: document.getElementById('add-undercover-word-input'),
+            addGameWordPairBtn: document.getElementById('add-game-word-pair-btn'),
+            gameWordPairsList: document.getElementById('game-word-pairs-list'),
+            confirmCustomWordsBtn: document.getElementById('confirm-custom-words-btn'),
+            
+            // 提示消息
+            toast: document.getElementById('toast'),
+            toastIcon: document.getElementById('toast-icon'),
+            toastMessage: document.getElementById('toast-message'),
+            
+            // 其他
+            settingsBtn: document.getElementById('settings-btn'),
+            userInfo: document.getElementById('user-info'),
+            userNickname: document.getElementById('user-nickname')
         };
 
-        // 初始化 Pusher（免费公共集群，无需注册）
-        const pusher = new Pusher('c720ae6f0d8d874e14c9', {
-            cluster: 'ap1',
-            forceTLS: true
-        });
-
-        // 初始化事件监听（确保DOM加载完成后绑定）
-        document.addEventListener('DOMContentLoaded', function() {
-            initEvents();
-        });
-
-        function initEvents() {
-            // 房间入口页
-            DOM.createRoomBtn.addEventListener('click', handleCreateRoom);
-            DOM.joinRoomBtn.addEventListener('click', () => {
-                DOM.joinError.style.display = 'none';
-                DOM.joinTimeoutError.style.display = 'none';
-                DOM.roomEntryPage.classList.add('hidden');
-                DOM.joinModal.classList.remove('hidden');
-                // 主动聚焦输入框，确保显示并可输入
+        // 工具函数
+        const utils = {
+            // 生成随机ID
+            generateId(length = 6) {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
+                for (let i = 0; i < length; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            },
+            
+            // 生成用户ID
+            generateUserId() {
+                return 'user_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            },
+            
+            // 显示提示消息
+            showToast(message, type = 'success') {
+                elements.toastMessage.textContent = message;
+                
+                if (type === 'success') {
+                    elements.toastIcon.className = 'fa fa-check-circle text-success mr-2';
+                } else if (type === 'error') {
+                    elements.toastIcon.className = 'fa fa-exclamation-circle text-danger mr-2';
+                } else if (type === 'warning') {
+                    elements.toastIcon.className = 'fa fa-exclamation-triangle text-warning mr-2';
+                } else if (type === 'info') {
+                    elements.toastIcon.className = 'fa fa-info-circle text-info mr-2';
+                }
+                
+                elements.toast.classList.remove('translate-y-20', 'opacity-0');
+                elements.toast.classList.add('translate-y-0', 'opacity-100');
+                
                 setTimeout(() => {
-                    DOM.roomIdInput.focus();
+                    elements.toast.classList.remove('translate-y-0', 'opacity-100');
+                    elements.toast.classList.add('translate-y-20', 'opacity-0');
+                }, 3000);
+            },
+            
+            // 复制文本到剪贴板
+            copyToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                utils.showToast('已复制到剪贴板');
+            },
+            
+            // 格式化时间
+            formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            },
+            
+            // 随机选择数组元素
+            randomChoice(array) {
+                return array[Math.floor(Math.random() * array.length)];
+            },
+            
+            // 洗牌数组
+            shuffleArray(array) {
+                const newArray = [...array];
+                for (let i = newArray.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+                }
+                return newArray;
+            },
+            
+            // 播放音效
+            playSound(soundName) {
+                if (!gameData.settings.soundEnabled) return;
+                
+                // 这里可以添加音效播放逻辑
+                // 由于没有实际的音效文件，暂时省略
+            },
+            
+            // 显示加载进度
+            updateLoadingProgress(progress) {
+                elements.loadingBar.style.width = `${progress}%`;
+            },
+            
+            // 创建confetti效果
+            createConfetti() {
+                const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+                const confettiContainer = document.createElement('div');
+                confettiContainer.style.position = 'fixed';
+                confettiContainer.style.top = '0';
+                confettiContainer.style.left = '0';
+                confettiContainer.style.width = '100%';
+                confettiContainer.style.height = '100%';
+                confettiContainer.style.pointerEvents = 'none';
+                confettiContainer.style.zIndex = '100';
+                document.body.appendChild(confettiContainer);
+                
+                for (let i = 0; i < 100; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = `${Math.random() * 100}%`;
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDelay = `${Math.random() * 3}s`;
+                    confettiContainer.appendChild(confetti);
+                }
+                
+                setTimeout(() => {
+                    document.body.removeChild(confettiContainer);
+                }, 6000);
+            }
+        };
+
+        // 存储管理
+        const storage = {
+            // 保存数据到localStorage
+            saveData(key, data) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(data));
+                    return true;
+                } catch (error) {
+                    console.error('保存数据失败:', error);
+                    return false;
+                }
+            },
+            
+            // 从localStorage加载数据
+            loadData(key, defaultValue = null) {
+                try {
+                    const data = localStorage.getItem(key);
+                    return data ? JSON.parse(data) : defaultValue;
+                } catch (error) {
+                    console.error('加载数据失败:', error);
+                    return defaultValue;
+                }
+            },
+            
+            // 保存设置
+            saveSettings() {
+                return storage.saveData('who_is_undercover_settings', gameData.settings);
+            },
+            
+            // 加载设置
+            loadSettings() {
+                const settings = storage.loadData('who_is_undercover_settings');
+                if (settings) {
+                    gameData.settings = { ...gameData.settings, ...settings };
+                }
+            },
+            
+            // 保存自定义词语
+            saveCustomWords() {
+                return storage.saveData('who_is_undercover_custom_words', gameData.customWordPairs);
+            },
+            
+            // 加载自定义词语
+            loadCustomWords() {
+                const customWords = storage.loadData('who_is_undercover_custom_words', []);
+                gameData.customWordPairs = customWords;
+            },
+            
+            // 保存游戏历史
+            saveGameHistory() {
+                return storage.saveData('who_is_undercover_game_history', gameData.gameHistory);
+            },
+            
+            // 加载游戏历史
+            loadGameHistory() {
+                const history = storage.loadData('who_is_undercover_game_history', []);
+                gameData.gameHistory = history;
+            }
+        };
+
+        // 页面管理
+        const pageManager = {
+            // 显示页面
+            showPage(pageId) {
+                elements.homePage.classList.add('hidden');
+                elements.roomPage.classList.add('hidden');
+                elements.gamePage.classList.add('hidden');
+                
+                if (pageId === 'home') {
+                    elements.homePage.classList.remove('hidden');
+                    pageManager.updateHomePage();
+                } else if (pageId === 'room') {
+                    elements.roomPage.classList.remove('hidden');
+                    pageManager.updateRoomPage();
+                } else if (pageId === 'game') {
+                    elements.gamePage.classList.remove('hidden');
+                    pageManager.updateGamePage();
+                }
+            },
+            
+            // 更新首页
+            updateHomePage() {
+                // 更新游戏历史
+                pageManager.updateGameHistory();
+            },
+            
+            // 更新房间页面
+            updateRoomPage() {
+                elements.currentRoomId.textContent = gameData.roomId;
+                elements.playerCount.textContent = gameData.players.length;
+                
+                // 更新玩家列表
+                elements.playersList.innerHTML = '';
+                gameData.players.forEach(player => {
+                    const playerElement = document.createElement('div');
+                    playerElement.className = 'text-center';
+                    playerElement.innerHTML = `
+                        <div class="player-avatar mx-auto mb-2 ${player.isReady ? 'active' : ''}">
+                            ${player.nickname.charAt(0)}
+                        </div>
+                        <p class="font-medium">${player.nickname}</p>
+                        <p class="text-xs text-gray-400">${player.isHost ? '房主' : player.isReady ? '已准备' : '未准备'}</p>
+                    `;
+                    elements.playersList.appendChild(playerElement);
+                });
+                
+                // 更新房主控制
+                if (gameData.isHost) {
+                    elements.hostControls.classList.remove('hidden');
+                    elements.playerControls.classList.add('hidden');
+                    
+                    // 检查是否可以开始游戏
+                    const readyPlayers = gameData.players.filter(p => p.isReady);
+                    elements.startGameBtn.disabled = readyPlayers.length < 4;
+                } else {
+                    elements.hostControls.classList.add('hidden');
+                    elements.playerControls.classList.remove('hidden');
+                    
+                    // 检查当前玩家是否已准备
+                    const currentPlayer = gameData.players.find(p => p.id === gameData.userId);
+                    if (currentPlayer && currentPlayer.isReady) {
+                        elements.readyBtn.innerHTML = '<i class="fa fa-times-circle mr-2"></i> 取消准备';
+                    } else {
+                        elements.readyBtn.innerHTML = '<i class="fa fa-check-circle mr-2"></i> 准备';
+                    }
+                }
+                
+                // 更新自定义词语列表
+                elements.customWordsList.innerHTML = '';
+                if (gameData.customWordPairs.length > 0) {
+                    gameData.customWordPairs.slice(0, 5).forEach(pair => {
+                        const wordElement = document.createElement('div');
+                        wordElement.className = 'flex justify-between items-center p-2 bg-dark rounded mb-2';
+                        wordElement.innerHTML = `
+                            <span>${pair.civilian} <i class="fa fa-arrow-right text-primary"></i> ${pair.undercover}</span>
+                        `;
+                        elements.customWordsList.appendChild(wordElement);
+                    });
+                    
+                    if (gameData.customWordPairs.length > 5) {
+                        const moreElement = document.createElement('p');
+                        moreElement.className = 'text-center text-sm text-gray-400 mt-2';
+                        moreElement.textContent = `还有 ${gameData.customWordPairs.length - 5} 个词语对...`;
+                        elements.customWordsList.appendChild(moreElement);
+                    }
+                } else {
+                    elements.customWordsList.innerHTML = '<p class="text-gray-400 text-center py-2">暂无自定义词语</p>';
+                }
+                
+                // 更新设置
+                elements.undercoverCount.value = gameData.settings.undercoverCount;
+                elements.whiteboardCount.value = gameData.settings.whiteboardCount;
+                elements.describeTime.value = gameData.settings.describeTime;
+                elements.voteTime.value = gameData.settings.voteTime;
+                elements.useCustomWords.checked = gameData.settings.useCustomWords;
+            },
+            
+            // 更新游戏页面
+            updateGamePage() {
+                elements.currentRound.textContent = gameData.currentRound;
+                elements.remainingPlayers.textContent = gameData.players.length - gameData.eliminatedPlayers.length;
+                
+                // 更新当前阶段
+                let phaseText = '等待中';
+                if (gameData.currentPhase === 'describing') {
+                    phaseText = '描述阶段';
+                } else if (gameData.currentPhase === 'voting') {
+                    phaseText = '投票阶段';
+                } else if (gameData.currentPhase === 'result') {
+                    phaseText = '结果阶段';
+                } else if (gameData.currentPhase === 'gameOver') {
+                    phaseText = '游戏结束';
+                }
+                elements.currentPhase.textContent = phaseText;
+                
+                // 更新玩家状态
+                elements.gamePlayers.innerHTML = '';
+                gameData.players.forEach((player, index) => {
+                    const isEliminated = gameData.eliminatedPlayers.includes(player.id);
+                    const isCurrentPlayer = gameData.currentPhase === 'describing' && index === gameData.currentPlayerIndex;
+                    
+                    const playerElement = document.createElement('div');
+                    playerElement.className = 'text-center';
+                    playerElement.innerHTML = `
+                        <div class="player-avatar mx-auto mb-2 ${isEliminated ? 'eliminated' : isCurrentPlayer ? 'active' : ''}">
+                            ${player.nickname.charAt(0)}
+                        </div>
+                        <p class="font-medium ${isEliminated ? 'line-through text-gray-400' : ''}">${player.nickname}</p>
+                        <p class="text-xs text-gray-400">${isEliminated ? '已淘汰' : isCurrentPlayer ? '正在描述' : ''}</p>
+                    `;
+                    elements.gamePlayers.appendChild(playerElement);
+                });
+                
+                // 更新词语卡片
+                elements.playerWord.textContent = gameData.playerWord;
+                elements.playerRole.textContent = gameData.playerRole === 'civilian' ? '平民' : 
+                                                 gameData.playerRole === 'undercover' ? '卧底' : '白板';
+                
+                // 更新描述区域
+                if (gameData.currentPhase === 'describing') {
+                    elements.describeArea.classList.remove('hidden');
+                    elements.voteArea.classList.add('hidden');
+                    elements.resultArea.classList.add('hidden');
+                    elements.gameOverArea.classList.add('hidden');
+                    
+                    const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+                    elements.describeHint.textContent = currentPlayer.id === gameData.userId ? 
+                        '轮到你描述了，请用一句话描述你的词语（不能直接说出词语）' : 
+                        `等待 ${currentPlayer.nickname} 描述...`;
+                    
+                    elements.describeInput.disabled = currentPlayer.id !== gameData.userId;
+                    elements.submitDescribeBtn.disabled = currentPlayer.id !== gameData.userId;
+                    
+                    if (currentPlayer.id === gameData.userId) {
+                        elements.describeInput.focus();
+                    } else {
+                        elements.describeInput.value = '';
+                    }
+                }
+                
+                // 更新投票区域
+                else if (gameData.currentPhase === 'voting') {
+                    elements.describeArea.classList.add('hidden');
+                    elements.voteArea.classList.remove('hidden');
+                    elements.resultArea.classList.add('hidden');
+                    elements.gameOverArea.classList.add('hidden');
+                    
+                    elements.votePlayers.innerHTML = '';
+                    gameData.players.forEach(player => {
+                        if (!gameData.eliminatedPlayers.includes(player.id) && player.id !== gameData.userId) {
+                            const playerElement = document.createElement('div');
+                            playerElement.className = 'text-center cursor-pointer hover:bg-dark p-2 rounded transition-all-300';
+                            playerElement.dataset.playerId = player.id;
+                            playerElement.innerHTML = `
+                                <div class="player-avatar mx-auto mb-2">
+                                    ${player.nickname.charAt(0)}
+                                </div>
+                                <p class="font-medium">${player.nickname}</p>
+                            `;
+                            
+                            playerElement.addEventListener('click', () => {
+                                document.querySelectorAll('#vote-players > div').forEach(el => {
+                                    el.classList.remove('bg-dark', 'ring-2', 'ring-primary');
+                                });
+                                playerElement.classList.add('bg-dark', 'ring-2', 'ring-primary');
+                                elements.submitVoteBtn.disabled = false;
+                            });
+                            
+                            elements.votePlayers.appendChild(playerElement);
+                        }
+                    });
+                }
+                
+                // 更新结果区域
+                else if (gameData.currentPhase === 'result') {
+                    elements.describeArea.classList.add('hidden');
+                    elements.voteArea.classList.add('hidden');
+                    elements.resultArea.classList.remove('hidden');
+                    elements.gameOverArea.classList.add('hidden');
+                    
+                    // 显示投票结果
+                    elements.voteResults.innerHTML = '';
+                    
+                    const voteCount = {};
+                    Object.values(gameData.votes).forEach(votedId => {
+                        voteCount[votedId] = (voteCount[votedId] || 0) + 1;
+                    });
+                    
+                    const sortedVotes = Object.entries(voteCount)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([playerId, count]) => {
+                            const player = gameData.players.find(p => p.id === playerId);
+                            return { player, count };
+                        });
+                    
+                    sortedVotes.forEach(({ player, count }) => {
+                        const voteElement = document.createElement('div');
+                        voteElement.className = 'flex justify-between items-center p-3 bg-dark rounded mb-2';
+                        voteElement.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="player-avatar mr-3">
+                                    ${player.nickname.charAt(0)}
+                                </div>
+                                <span>${player.nickname}</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="mr-2 font-semibold">${count}</span>
+                                <i class="fa fa-vote-yea text-primary"></i>
+                            </div>
+                        `;
+                        elements.voteResults.appendChild(voteElement);
+                    });
+                    
+                    // 显示淘汰结果
+                    const eliminatedPlayer = sortedVotes[0].player;
+                    const eliminatedRole = eliminatedPlayer.role === 'civilian' ? '平民' : 
+                                          eliminatedPlayer.role === 'undercover' ? '卧底' : '白板';
+                    
+                    elements.eliminatedPlayer.textContent = eliminatedPlayer.nickname;
+                    elements.eliminatedRole.textContent = eliminatedRole;
+                    elements.eliminatedRole.className = eliminatedPlayer.role === 'civilian' ? 'text-primary font-semibold' : 
+                                                       eliminatedPlayer.role === 'undercover' ? 'text-danger font-semibold' : 
+                                                       'text-warning font-semibold';
+                }
+                
+                // 更新游戏结束区域
+                else if (gameData.currentPhase === 'gameOver') {
+                    elements.describeArea.classList.add('hidden');
+                    elements.voteArea.classList.add('hidden');
+                    elements.resultArea.classList.add('hidden');
+                    elements.gameOverArea.classList.remove('hidden');
+                    
+                    // 显示胜利者
+                    const isCivilianWin = gameData.eliminatedPlayers.filter(p => {
+                        const player = gameData.players.find(pl => pl.id === p);
+                        return player && player.role === 'undercover';
+                    }).length === gameData.settings.undercoverCount;
+                    
+                    elements.gameWinner.textContent = isCivilianWin ? '平民胜利！' : '卧底胜利！';
+                    elements.gameWinner.className = isCivilianWin ? 'text-3xl font-bold mb-6 text-success' : 'text-3xl font-bold mb-6 text-danger';
+                    
+                    // 显示词语
+                    const wordPair = gameData.gameWordPairs[0];
+                    elements.civilianWord.textContent = wordPair.civilian;
+                    elements.undercoverWord.textContent = wordPair.undercover;
+                    
+                    // 显示玩家身份
+                    elements.finalRoles.innerHTML = '';
+                    gameData.players.forEach(player => {
+                        const roleText = player.role === 'civilian' ? '平民' : 
+                                        player.role === 'undercover' ? '卧底' : '白板';
+                        const roleClass = player.role === 'civilian' ? 'text-primary' : 
+                                        player.role === 'undercover' ? 'text-danger' : 'text-warning';
+                        
+                        const roleElement = document.createElement('div');
+                        roleElement.className = 'flex justify-between items-center p-2 bg-dark rounded';
+                        roleElement.innerHTML = `
+                            <div class="flex items-center">
+                                <div class="player-avatar mr-2" style="width: 30px; height: 30px; font-size: 14px;">
+                                    ${player.nickname.charAt(0)}
+                                </div>
+                                <span>${player.nickname}</span>
+                            </div>
+                            <span class="${roleClass} font-semibold">${roleText}</span>
+                        `;
+                        elements.finalRoles.appendChild(roleElement);
+                    });
+                    
+                    // 创建庆祝效果
+                    if (isCivilianWin && gameData.playerRole === 'civilian' || 
+                        !isCivilianWin && gameData.playerRole === 'undercover') {
+                        utils.createConfetti();
+                    }
+                    
+                    // 保存游戏历史
+                    const historyItem = {
+                        id: Date.now(),
+                        date: new Date().toLocaleString(),
+                        players: gameData.players.map(p => ({
+                            id: p.id,
+                            nickname: p.nickname,
+                            role: p.role
+                        })),
+                        winner: isCivilianWin ? 'civilian' : 'undercover',
+                        wordPair: wordPair,
+                        playerRole: gameData.playerRole,
+                        isWinner: isCivilianWin && gameData.playerRole === 'civilian' || 
+                                 !isCivilianWin && gameData.playerRole === 'undercover'
+                    };
+                    
+                    gameData.gameHistory.unshift(historyItem);
+                    if (gameData.gameHistory.length > 10) {
+                        gameData.gameHistory.pop();
+                    }
+                    storage.saveGameHistory();
+                }
+            },
+            
+            // 更新游戏历史
+            updateGameHistory() {
+                elements.gameHistory.innerHTML = '';
+                
+                if (gameData.gameHistory.length === 0) {
+                    elements.gameHistory.innerHTML = `
+                        <div class="text-center text-gray-400 py-8 col-span-full">
+                            <i class="fa fa-history text-3xl mb-2"></i>
+                            <p>暂无游戏记录</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                gameData.gameHistory.slice(0, 3).forEach(history => {
+                    const historyElement = document.createElement('div');
+                    historyElement.className = 'card p-4 scale-hover transition-all-300';
+                    
+                    const winnerText = history.winner === 'civilian' ? '平民胜利' : '卧底胜利';
+                    const winnerClass = history.winner === 'civilian' ? 'text-success' : 'text-danger';
+                    const playerResult = history.isWinner ? '胜利' : '失败';
+                    const playerResultClass = history.isWinner ? 'text-success' : 'text-danger';
+                    const roleText = history.playerRole === 'civilian' ? '平民' : 
+                                    history.playerRole === 'undercover' ? '卧底' : '白板';
+                    const roleClass = history.playerRole === 'civilian' ? 'text-primary' : 
+                                    history.playerRole === 'undercover' ? 'text-danger' : 'text-warning';
+                    
+                    historyElement.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-semibold">${history.date}</h4>
+                            <span class="${winnerClass} font-semibold">${winnerText}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-gray-300">你的身份</span>
+                            <span class="${roleClass} font-medium">${roleText}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-gray-300">词语</span>
+                            <span>${history.wordPair.civilian} vs ${history.wordPair.undercover}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-300">结果</span>
+                            <span class="${playerResultClass} font-medium">${playerResult}</span>
+                        </div>
+                    `;
+                    
+                    elements.gameHistory.appendChild(historyElement);
+                });
+            }
+        };
+
+        // 游戏逻辑
+        const gameLogic = {
+            // 初始化游戏
+            init() {
+                // 加载数据
+                storage.loadSettings();
+                storage.loadCustomWords();
+                storage.loadGameHistory();
+                
+                // 生成用户ID
+                if (!gameData.userId) {
+                    gameData.userId = utils.generateUserId();
+                }
+                
+                // 初始化UI
+                gameLogic.initUI();
+                
+                // 模拟加载
+                let progress = 0;
+                const loadingInterval = setInterval(() => {
+                    progress += 5;
+                    utils.updateLoadingProgress(progress);
+                    
+                    if (progress >= 100) {
+                        clearInterval(loadingInterval);
+                        setTimeout(() => {
+                            elements.loadingScreen.classList.add('hidden');
+                            elements.app.classList.remove('hidden');
+                            pageManager.showPage('home');
+                        }, 500);
+                    }
                 }, 100);
-            });
-            DOM.cancelJoinBtn.addEventListener('click', () => {
-                // 清除超时计时器
-                if (joinRoomTimer) clearTimeout(joinRoomTimer);
-                DOM.joinModal.classList.add('hidden');
-                DOM.roomEntryPage.classList.remove('hidden');
-            });
-            DOM.confirmJoinBtn.addEventListener('click', handleJoinRoom);
-            DOM.enterRoomBtn.addEventListener('click', enterGameRoom);
-
-            // 游戏房间页
-            DOM.leaveRoomBtn.addEventListener('click', handleLeaveRoom);
-            DOM.startGameBtn.addEventListener('click', handleStartGame);
-            DOM.submitSpeechBtn.addEventListener('click', handleSubmitSpeech);
-            DOM.submitVoteBtn.addEventListener('click', handleSubmitVote);
-            DOM.restartGameBtn.addEventListener('click', handleRestartGame);
-            DOM.backHomeBtn.addEventListener('click', () => window.location.reload());
-
-            // 输入框限制
-            DOM.playerName.addEventListener('input', (e) => {
-                e.target.value = e.target.value.trim();
-                DOM.nameError.style.display = 'none';
-            });
-            DOM.roomIdInput.addEventListener('input', (e) => {
-                // 仅允许输入数字
-                e.target.value = e.target.value.trim().replace(/[^0-9]/g, '');
-                DOM.roomIdError.style.display = 'none';
-                DOM.joinError.style.display = 'none';
-                DOM.joinTimeoutError.style.display = 'none';
-            });
-            DOM.speechInput.addEventListener('keyup', (e) => {
-                e.key === 'Enter' && handleSubmitSpeech();
-                DOM.speechError.style.display = 'none';
-            });
-        }
-
-        // 1. 创建房间（核心修复：提前绑定状态请求监听，确保新玩家能获取房间数据）
-        function handleCreateRoom() {
-            const name = DOM.playerName.value.trim();
-            if (!name) {
-                DOM.nameError.style.display = 'block';
-                return;
-            }
-
-            // 生成6位房间号（确保唯一且易记）
-            const roomId = Math.floor(100000 + Math.random() * 900000).toString();
-            currentUser.name = name;
-            currentRoom.id = roomId;
-            currentRoom.isHost = true;
-
-            // 初始化房间数据
-            gameState = {
-                players: [{ id: currentUser.id, name, role: null, isAlive: true }],
-                wordPair: wordLibrary[Math.floor(Math.random() * wordLibrary.length)],
-                status: 'waiting',
-                speeches: [],
-                votes: {},
-                speechCount: 0
-            };
-
-            try {
-                // 订阅房间频道（Pusher 实时通信）
-                const channel = pusher.subscribe(`room-${roomId}`);
-                
-                // 【关键修复1】创建房间后立即绑定状态请求监听，无需等待进入房间
-                channel.bind('client-request-room-state', () => {
-                    channel.trigger('client-room-updated', gameState);
+            },
+            
+            // 初始化UI
+            initUI() {
+                // 首页事件
+                elements.nicknameInput.addEventListener('input', () => {
+                    const nickname = elements.nicknameInput.value.trim();
+                    if (nickname.length < 2 || nickname.length > 6) {
+                        elements.nicknameError.classList.remove('hidden');
+                    } else {
+                        elements.nicknameError.classList.add('hidden');
+                    }
                 });
-
-                // 同步房间初始数据到频道
-                channel.trigger('client-room-updated', gameState);
-
-                // 显示创建成功弹窗
-                DOM.createdRoomId.textContent = roomId;
-                DOM.createSuccessModal.classList.remove('hidden');
-                DOM.createError.style.display = 'none';
-            } catch (err) {
-                console.error('创建房间失败：', err);
-                DOM.createError.style.display = 'block';
-            }
-        }
-
-        // 2. 加入房间（核心修复：提前绑定状态更新监听+超时处理）
-        function handleJoinRoom() {
-            const name = DOM.playerName.value.trim();
-            const roomId = DOM.roomIdInput.value.trim();
-
-            if (!name) {
-                DOM.nameError.style.display = 'block';
-                return;
-            }
-            if (roomId.length !== 6) {
-                DOM.roomIdError.style.display = 'block';
-                return;
-            }
-
-            // 显示加载提示，隐藏错误提示，禁用按钮防止重复点击
-            DOM.confirmJoinBtn.disabled = true;
-            DOM.joinLoading.classList.remove('hidden');
-            DOM.joinError.style.display = 'none';
-            DOM.joinTimeoutError.style.display = 'none';
-
-            currentUser.name = name;
-            currentRoom.id = roomId;
-            currentRoom.isHost = false;
-
-            try {
-                // 订阅目标房间频道
-                const channel = pusher.subscribe(`room-${roomId}`);
                 
-                // 【关键修复2】订阅后立即绑定状态更新监听，确保不遗漏同步信息
-                channel.bind('client-room-updated', (updatedState) => {
-                    // 清除超时计时器
-                    if (joinRoomTimer) clearTimeout(joinRoomTimer);
-                    // 恢复按钮状态与加载提示
-                    DOM.confirmJoinBtn.disabled = false;
-                    DOM.joinLoading.classList.add('hidden');
-
-                    // 验证房间状态
-                    if (!updatedState) {
-                        DOM.joinError.style.display = 'block';
+                elements.createRoomBtn.addEventListener('click', () => {
+                    const nickname = elements.nicknameInput.value.trim();
+                    if (nickname.length < 2 || nickname.length > 6) {
+                        utils.showToast('请输入2-6个字符的昵称', 'error');
                         return;
                     }
-                    if (updatedState.status !== 'waiting') {
-                        DOM.joinError.style.display = 'block';
-                        return;
-                    }
-                    if (updatedState.players.length >= 12) {
-                        DOM.joinError.style.display = 'block';
-                        return;
-                    }
-
-                    // 检查当前玩家是否已在房间内（避免重复加入）
-                    const isAlreadyIn = updatedState.players.some(p => p.id === currentUser.id);
-                    if (isAlreadyIn) {
-                        gameState = updatedState;
-                        DOM.joinModal.classList.add('hidden');
-                        enterGameRoom();
-                        return;
-                    }
-
-                    // 添加新玩家
-                    const newPlayer = { id: currentUser.id, name, role: null, isAlive: true };
-                    gameState = { ...updatedState, players: [...updatedState.players, newPlayer] };
-
-                    // 同步更新到房间频道
-                    channel.trigger('client-room-updated', gameState);
-
-                    // 进入游戏房间
-                    DOM.joinModal.classList.add('hidden');
-                    enterGameRoom();
+                    
+                    gameData.nickname = nickname;
+                    gameData.userId = utils.generateUserId();
+                    gameData.isHost = true;
+                    gameData.roomId = utils.generateId();
+                    gameData.players = [{
+                        id: gameData.userId,
+                        nickname: gameData.nickname,
+                        isHost: true,
+                        isReady: false
+                    }];
+                    
+                    // 初始化PeerJS
+                    gameLogic.initPeerJS();
+                    
+                    pageManager.showPage('room');
                 });
-
-                // 【关键修复3】添加5秒超时处理，避免无限等待
-                joinRoomTimer = setTimeout(() => {
-                    DOM.confirmJoinBtn.disabled = false;
-                    DOM.joinLoading.classList.add('hidden');
-                    DOM.joinTimeoutError.style.display = 'block';
-                    // 退订无效频道，释放资源
-                    pusher.unsubscribe(`room-${roomId}`);
+                
+                elements.joinRoomBtn.addEventListener('click', () => {
+                    const nickname = elements.nicknameInput.value.trim();
+                    if (nickname.length < 2 || nickname.length > 6) {
+                        utils.showToast('请输入2-6个字符的昵称', 'error');
+                        return;
+                    }
+                    
+                    const roomId = elements.roomIdInput.value.trim().toUpperCase();
+                    if (roomId.length !== 6) {
+                        utils.showToast('请输入6位房间ID', 'error');
+                        return;
+                    }
+                    
+                    gameData.nickname = nickname;
+                    gameData.userId = utils.generateUserId();
+                    gameData.isHost = false;
+                    gameData.roomId = roomId;
+                    
+                    // 初始化PeerJS并加入房间
+                    gameLogic.initPeerJS();
+                    gameLogic.joinRoom(roomId);
+                });
+                
+                elements.customWordsBtn.addEventListener('click', () => {
+                    gameLogic.showCustomWordsModal();
+                });
+                
+                // 房间页面事件
+                elements.copyRoomIdBtn.addEventListener('click', () => {
+                    utils.copyToClipboard(gameData.roomId);
+                });
+                
+                elements.leaveRoomBtn.addEventListener('click', () => {
+                    gameLogic.leaveRoom();
+                });
+                
+                elements.startGameBtn.addEventListener('click', () => {
+                    gameLogic.startGame();
+                });
+                
+                elements.readyBtn.addEventListener('click', () => {
+                    gameLogic.toggleReady();
+                });
+                
+                elements.chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        gameLogic.sendChat();
+                    }
+                });
+                
+                elements.sendChatBtn.addEventListener('click', () => {
+                    gameLogic.sendChat();
+                });
+                
+                elements.addCustomWordsBtn.addEventListener('click', () => {
+                    gameLogic.showAddCustomWordsModal();
+                });
+                
+                // 游戏页面事件
+                elements.describeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        gameLogic.submitDescribe();
+                    }
+                });
+                
+                elements.submitDescribeBtn.addEventListener('click', () => {
+                    gameLogic.submitDescribe();
+                });
+                
+                elements.submitVoteBtn.addEventListener('click', () => {
+                    gameLogic.submitVote();
+                });
+                
+                elements.continueGameBtn.addEventListener('click', () => {
+                    gameLogic.continueGame();
+                });
+                
+                elements.playAgainBtn.addEventListener('click', () => {
+                    gameLogic.playAgain();
+                });
+                
+                elements.backToHomeBtn.addEventListener('click', () => {
+                    gameLogic.leaveRoom();
+                });
+                
+                elements.gameChatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        gameLogic.sendGameChat();
+                    }
+                });
+                
+                elements.sendGameChatBtn.addEventListener('click', () => {
+                    gameLogic.sendGameChat();
+                });
+                
+                // 设置事件
+                elements.settingsBtn.addEventListener('click', () => {
+                    gameLogic.showSettingsModal();
+                });
+                
+                // 自定义词语模态框事件
+                elements.closeCustomWordsModal.addEventListener('click', () => {
+                    elements.customWordsModal.classList.add('hidden');
+                });
+                
+                elements.addWordPairBtn.addEventListener('click', () => {
+                    gameLogic.addCustomWordPair();
+                });
+                
+                elements.clearAllWordsBtn.addEventListener('click', () => {
+                    gameLogic.clearAllCustomWords();
+                });
+                
+                elements.importWordsBtn.addEventListener('click', () => {
+                    gameLogic.importCustomWords();
+                });
+                
+                elements.exportWordsBtn.addEventListener('click', () => {
+                    gameLogic.exportCustomWords();
+                });
+                
+                // 设置模态框事件
+                elements.closeSettingsModal.addEventListener('click', () => {
+                    elements.settingsModal.classList.add('hidden');
+                });
+                
+                elements.saveSettingsBtn.addEventListener('click', () => {
+                    gameLogic.saveSettings();
+                });
+                
+                // 添加自定义词语模态框事件
+                elements.closeAddCustomWordsModal.addEventListener('click', () => {
+                    elements.addCustomWordsModal.classList.add('hidden');
+                });
+                
+                elements.addGameWordPairBtn.addEventListener('click', () => {
+                    gameLogic.addGameWordPair();
+                });
+                
+                elements.confirmCustomWordsBtn.addEventListener('click', () => {
+                    elements.addCustomWordsModal.classList.add('hidden');
+                });
+                
+                // 监听设置变化
+                elements.undercoverCount.addEventListener('change', (e) => {
+                    gameData.settings.undercoverCount = parseInt(e.target.value);
+                });
+                
+                elements.whiteboardCount.addEventListener('change', (e) => {
+                    gameData.settings.whiteboardCount = parseInt(e.target.value);
+                });
+                
+                elements.describeTime.addEventListener('change', (e) => {
+                    gameData.settings.describeTime = parseInt(e.target.value);
+                });
+                
+                elements.voteTime.addEventListener('change', (e) => {
+                    gameData.settings.voteTime = parseInt(e.target.value);
+                });
+                
+                elements.useCustomWords.addEventListener('change', (e) => {
+                    gameData.settings.useCustomWords = e.target.checked;
+                });
+            },
+            
+            // 初始化PeerJS
+            initPeerJS() {
+                gameData.peer = new Peer(gameData.userId, {
+                    host: 'peerjs-server.herokuapp.com',
+                    port: 443,
+                    secure: true
+                });
+                
+                gameData.peer.on('open', (id) => {
+                    console.log('PeerJS连接已建立，ID:', id);
+                });
+                
+                gameData.peer.on('connection', (conn) => {
+                    console.log('收到新连接:', conn.peer);
+                    
+                    conn.on('open', () => {
+                        gameData.connections[conn.peer] = conn;
+                        
+                        // 发送当前玩家列表
+                        conn.send({
+                            type: 'players_list',
+                            players: gameData.players,
+                            roomId: gameData.roomId,
+                            isHost: gameData.isHost
+                        });
+                    });
+                    
+                    conn.on('data', (data) => {
+                        gameLogic.handleMessage(data, conn);
+                    });
+                    
+                    conn.on('close', () => {
+                        console.log('连接已关闭:', conn.peer);
+                        delete gameData.connections[conn.peer];
+                        
+                        // 移除玩家
+                        gameData.players = gameData.players.filter(p => p.id !== conn.peer);
+                        
+                        // 如果是房主，更新房间状态
+                        if (gameData.isHost) {
+                            gameLogic.broadcastMessage({
+                                type: 'player_left',
+                                playerId: conn.peer
+                            });
+                            
+                            pageManager.updateRoomPage();
+                        }
+                        
+                        // 如果玩家已离开，检查是否需要返回首页
+                        if (gameData.players.length === 0) {
+                            gameLogic.leaveRoom();
+                        }
+                    });
+                });
+                
+                gameData.peer.on('error', (error) => {
+                    console.error('PeerJS错误:', error);
+                    utils.showToast('连接失败，请重试', 'error');
+                });
+            },
+            
+            // 加入房间
+            joinRoom(roomId) {
+                // 模拟加入房间
+                setTimeout(() => {
+                    // 假设成功加入房间
+                    gameData.players = [
+                        {
+                            id: 'host_id',
+                            nickname: '房主',
+                            isHost: true,
+                            isReady: true
+                        },
+                        {
+                            id: gameData.userId,
+                            nickname: gameData.nickname,
+                            isHost: false,
+                            isReady: false
+                        }
+                    ];
+                    
+                    pageManager.showPage('room');
+                    utils.showToast('成功加入房间', 'success');
+                }, 1000);
+            },
+            
+            // 离开房间
+            leaveRoom() {
+                // 关闭所有连接
+                Object.values(gameData.connections).forEach(conn => {
+                    conn.close();
+                });
+                
+                // 重置游戏数据
+                gameData.players = [];
+                gameData.isGameStarted = false;
+                gameData.currentPhase = 'waiting';
+                gameData.eliminatedPlayers = [];
+                
+                // 返回首页
+                pageManager.showPage('home');
+            },
+            
+            // 发送聊天消息
+            sendChat() {
+                const message = elements.chatInput.value.trim();
+                if (!message) return;
+                
+                // 添加消息到聊天区域
+                const messageElement = document.createElement('div');
+                messageElement.className = 'mb-2';
+                messageElement.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="player-avatar mr-2" style="width: 30px; height: 30px; font-size: 14px;">
+                            ${gameData.nickname.charAt(0)}
+                        </div>
+                        <div>
+                            <div class="flex items-center">
+                                <span class="font-semibold mr-2">${gameData.nickname}</span>
+                                <span class="text-xs text-gray-400">${new Date().toLocaleTimeString()}</span>
+                            </div>
+                            <p class="text-sm">${message}</p>
+                        </div>
+                    </div>
+                `;
+                elements.chatMessages.appendChild(messageElement);
+                elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                
+                // 清空输入框
+                elements.chatInput.value = '';
+                
+                // 广播消息
+                gameLogic.broadcastMessage({
+                    type: 'chat_message',
+                    senderId: gameData.userId,
+                    senderNickname: gameData.nickname,
+                    message: message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            },
+            
+            // 切换准备状态
+            toggleReady() {
+                const currentPlayer = gameData.players.find(p => p.id === gameData.userId);
+                if (!currentPlayer) return;
+                
+                currentPlayer.isReady = !currentPlayer.isReady;
+                
+                // 更新UI
+                pageManager.updateRoomPage();
+                
+                // 广播准备状态
+                gameLogic.broadcastMessage({
+                    type: 'player_ready',
+                    playerId: gameData.userId,
+                    isReady: currentPlayer.isReady
+                });
+            },
+            
+            // 开始游戏
+            startGame() {
+                // 检查玩家数量
+                const readyPlayers = gameData.players.filter(p => p.isReady);
+                if (readyPlayers.length < 4) {
+                    utils.showToast('至少需要4名玩家准备就绪', 'error');
+                    return;
+                }
+                
+                // 选择词语
+                let wordPairs = gameData.wordPairs;
+                if (gameData.settings.useCustomWords && gameData.customWordPairs.length > 0) {
+                    wordPairs = gameData.customWordPairs;
+                }
+                
+                gameData.gameWordPairs = utils.shuffleArray(wordPairs).slice(0, 1);
+                
+                // 分配角色
+                const shuffledPlayers = utils.shuffleArray([...readyPlayers]);
+                const undercoverCount = Math.min(gameData.settings.undercoverCount, Math.floor(shuffledPlayers.length / 4));
+                const whiteboardCount = Math.min(gameData.settings.whiteboardCount, Math.floor(shuffledPlayers.length / 5));
+                
+                shuffledPlayers.forEach((player, index) => {
+                    if (index < undercoverCount) {
+                        player.role = 'undercover';
+                        player.word = gameData.gameWordPairs[0].undercover;
+                    } else if (index < undercoverCount + whiteboardCount) {
+                        player.role = 'whiteboard';
+                        player.word = '';
+                    } else {
+                        player.role = 'civilian';
+                        player.word = gameData.gameWordPairs[0].civilian;
+                    }
+                });
+                
+                // 更新游戏状态
+                gameData.isGameStarted = true;
+                gameData.currentPhase = 'describing';
+                gameData.currentRound = 1;
+                gameData.currentPlayerIndex = 0;
+                gameData.descriptions = {};
+                gameData.votes = {};
+                gameData.eliminatedPlayers = [];
+                
+                // 获取当前玩家的词语和角色
+                const currentPlayer = shuffledPlayers.find(p => p.id === gameData.userId);
+                gameData.playerWord = currentPlayer.word;
+                gameData.playerRole = currentPlayer.role;
+                
+                // 更新UI
+                pageManager.showPage('game');
+                
+                // 广播游戏开始
+                gameLogic.broadcastMessage({
+                    type: 'game_start',
+                    players: shuffledPlayers,
+                    wordPairs: gameData.gameWordPairs,
+                    settings: gameData.settings
+                });
+                
+                // 开始描述阶段
+                gameLogic.startDescribePhase();
+            },
+            
+            // 开始描述阶段
+            startDescribePhase() {
+                // 更新游戏状态
+                gameData.currentPhase = 'describing';
+                gameData.descriptions = {};
+                
+                // 找到第一个未被淘汰的玩家
+                while (gameData.eliminatedPlayers.includes(gameData.players[gameData.currentPlayerIndex].id)) {
+                    gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                }
+                
+                // 更新UI
+                pageManager.updateGamePage();
+                
+                // 开始计时器
+                let timeLeft = gameData.settings.describeTime;
+                elements.describeTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                
+                gameData.timers.describe = setInterval(() => {
+                    timeLeft--;
+                    elements.describeTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(gameData.timers.describe);
+                        
+                        // 如果是当前玩家的回合，自动提交空描述
+                        const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+                        if (currentPlayer.id === gameData.userId) {
+                            gameLogic.submitDescribe(true);
+                        }
+                    }
+                }, 1000);
+                
+                // 广播描述阶段开始
+                gameLogic.broadcastMessage({
+                    type: 'describe_phase_start',
+                    currentPlayerIndex: gameData.currentPlayerIndex,
+                    round: gameData.currentRound
+                });
+            },
+            
+            // 提交描述
+            submitDescribe(isTimeout = false) {
+                const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+                if (currentPlayer.id !== gameData.userId && !isTimeout) return;
+                
+                let description = isTimeout ? '（超时未描述）' : elements.describeInput.value.trim();
+                if (!description) {
+                    description = '（无描述）';
+                }
+                
+                // 检查描述是否包含词语
+                if (!isTimeout && gameData.playerWord && description.includes(gameData.playerWord)) {
+                    utils.showToast('描述不能包含词语本身', 'warning');
+                    return;
+                }
+                
+                // 保存描述
+                gameData.descriptions[currentPlayer.id] = description;
+                
+                // 清空输入框
+                elements.describeInput.value = '';
+                
+                // 停止计时器
+                clearInterval(gameData.timers.describe);
+                
+                // 更新UI
+                pageManager.updateGamePage();
+                
+                // 广播描述提交
+                gameLogic.broadcastMessage({
+                    type: 'describe_submit',
+                    playerId: currentPlayer.id,
+                    description: description
+                });
+                
+                // 检查是否所有玩家都已描述
+                const activePlayers = gameData.players.filter(p => !gameData.eliminatedPlayers.includes(p.id));
+                if (Object.keys(gameData.descriptions).length === activePlayers.length) {
+                    // 开始投票阶段
+                    gameLogic.startVotePhase();
+                } else {
+                    // 切换到下一个玩家
+                    gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                    
+                    // 找到下一个未被淘汰的玩家
+                    while (gameData.eliminatedPlayers.includes(gameData.players[gameData.currentPlayerIndex].id)) {
+                        gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                    }
+                    
+                    // 更新UI
+                    pageManager.updateGamePage();
+                    
+                    // 开始计时器
+                    let timeLeft = gameData.settings.describeTime;
+                    elements.describeTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                    
+                    gameData.timers.describe = setInterval(() => {
+                        timeLeft--;
+                        elements.describeTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                        
+                        if (timeLeft <= 0) {
+                            clearInterval(gameData.timers.describe);
+                            
+                            // 如果是当前玩家的回合，自动提交空描述
+                            const nextPlayer = gameData.players[gameData.currentPlayerIndex];
+                            if (nextPlayer.id === gameData.userId) {
+                                gameLogic.submitDescribe(true);
+                            }
+                        }
+                    }, 1000);
+                    
+                    // 广播下一个玩家开始描述
+                    gameLogic.broadcastMessage({
+                        type: 'next_player_describe',
+                        currentPlayerIndex: gameData.currentPlayerIndex
+                    });
+                }
+            },
+            
+            // 开始投票阶段
+            startVotePhase() {
+                // 更新游戏状态
+                gameData.currentPhase = 'voting';
+                gameData.votes = {};
+                
+                // 更新UI
+                pageManager.updateGamePage();
+                
+                // 开始计时器
+                let timeLeft = gameData.settings.voteTime;
+                elements.voteTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                
+                gameData.timers.vote = setInterval(() => {
+                    timeLeft--;
+                    elements.voteTimer.textContent = `剩余时间: ${timeLeft}秒`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(gameData.timers.vote);
+                        
+                        // 如果当前玩家还未投票，随机投票
+                        if (!gameData.votes[gameData.userId]) {
+                            const activePlayers = gameData.players.filter(p => 
+                                !gameData.eliminatedPlayers.includes(p.id) && p.id !== gameData.userId
+                            );
+                            
+                            if (activePlayers.length > 0) {
+                                const randomPlayer = utils.randomChoice(activePlayers);
+                                gameLogic.submitVote(randomPlayer.id, true);
+                            }
+                        }
+                    }
+                }, 1000);
+                
+                // 广播投票阶段开始
+                gameLogic.broadcastMessage({
+                    type: 'vote_phase_start',
+                    descriptions: gameData.descriptions
+                });
+            },
+            
+            // 提交投票
+            submitVote(playerId = null, isRandom = false) {
+                // 如果没有指定玩家ID，从选中的元素中获取
+                if (!playerId && !isRandom) {
+                    const selectedPlayer = document.querySelector('#vote-players > div.ring-2');
+                    if (!selectedPlayer) {
+                        utils.showToast('请选择要投票的玩家', 'warning');
+                        return;
+                    }
+                    playerId = selectedPlayer.dataset.playerId;
+                }
+                
+                if (!playerId) return;
+                
+                // 保存投票
+                gameData.votes[gameData.userId] = playerId;
+                
+                // 停止计时器
+                clearInterval(gameData.timers.vote);
+                
+                // 更新UI
+                pageManager.updateGamePage();
+                
+                // 广播投票提交
+                gameLogic.broadcastMessage({
+                    type: 'vote_submit',
+                    voterId: gameData.userId,
+                    votedId: playerId
+                });
+                
+                // 检查是否所有玩家都已投票
+                const activePlayers = gameData.players.filter(p => !gameData.eliminatedPlayers.includes(p.id));
+                if (Object.keys(gameData.votes).length === activePlayers.length) {
+                    // 计算投票结果
+                    gameLogic.calculateVoteResults();
+                }
+            },
+            
+            // 计算投票结果
+            calculateVoteResults() {
+                // 统计投票
+                const voteCount = {};
+                Object.values(gameData.votes).forEach(votedId => {
+                    voteCount[votedId] = (voteCount[votedId] || 0) + 1;
+                });
+                
+                // 找出得票最多的玩家
+                let maxVotes = 0;
+                let eliminatedPlayerId = null;
+                
+                Object.entries(voteCount).forEach(([playerId, count]) => {
+                    if (count > maxVotes) {
+                        maxVotes = count;
+                        eliminatedPlayerId = playerId;
+                    } else if (count === maxVotes) {
+                        // 平票，随机选择一个
+                        if (Math.random() > 0.5) {
+                            eliminatedPlayerId = playerId;
+                        }
+                    }
+                });
+                
+                // 如果没有投票（例如只剩下一个玩家），则不淘汰任何人
+                if (!eliminatedPlayerId) {
+                    gameLogic.continueGame();
+                    return;
+                }
+                
+                // 淘汰玩家
+                gameData.eliminatedPlayers.push(eliminatedPlayerId);
+                
+                // 更新游戏状态
+                gameData.currentPhase = 'result';
+                
+                // 更新UI
+                pageManager.updateGamePage();
+                
+                // 广播投票结果
+                gameLogic.broadcastMessage({
+                    type: 'vote_result',
+                    eliminatedPlayerId: eliminatedPlayerId,
+                    voteCount: voteCount
+                });
+                
+                // 检查游戏是否结束
+                setTimeout(() => {
+                    gameLogic.checkGameOver();
                 }, 5000);
-
-                // 触发数据请求，让房主返回当前房间状态
-                channel.trigger('client-request-room-state', {});
-            } catch (err) {
-                console.error('加入房间失败：', err);
-                DOM.confirmJoinBtn.disabled = false;
-                DOM.joinLoading.classList.add('hidden');
-                DOM.joinError.style.display = 'block';
-            }
-        }
-
-        // 3. 进入游戏房间
-        function enterGameRoom() {
-            DOM.roomEntryPage.classList.add('hidden');
-            DOM.gameRoomPage.classList.remove('hidden');
-            DOM.currentRoomId.textContent = currentRoom.id;
-            updatePlayerList();
-
-            // 房主显示开始按钮并更新状态
-            if (currentRoom.isHost) {
-                DOM.startGameBtn.classList.remove('hidden');
-                updateStartBtnStatus();
-            } else {
-                // 非房主持续监听房间数据变化
-                const channel = pusher.channel(`room-${currentRoom.id}`);
-                channel.bind('client-room-updated', (updatedState) => {
-                    gameState = updatedState;
-                    updatePlayerList();
-                    updateMyRoleInfo();
-                    updateSpeechList();
-                    updateVoteSection();
-                    updateVoteList();
-
-                    // 投票完成后自动处理结果
-                    if (gameState.status === 'playing' && Object.keys(gameState.votes).length === getAliveCount()) {
-                        setTimeout(handleVoteResult, 500);
+            },
+            
+            // 检查游戏是否结束
+            checkGameOver() {
+                // 计算剩余的卧底和平民数量
+                let remainingUndercovers = 0;
+                let remainingCivilians = 0;
+                
+                gameData.players.forEach(player => {
+                    if (gameData.eliminatedPlayers.includes(player.id)) return;
+                    
+                    if (player.role === 'undercover') {
+                        remainingUndercovers++;
+                    } else if (player.role === 'civilian') {
+                        remainingCivilians++;
                     }
                 });
-            }
-        }
-
-        // 4. 开始游戏
-        function handleStartGame() {
-            if (gameState.players.length < 4) return alert('至少4人才能开始游戏！');
-
-            // 分配身份（根据人数调整卧底数量）
-            const playerCount = gameState.players.length;
-            const roleCount = {
-                spy: playerCount > 10 ? 2 : 1, // 10人以上2个卧底，否则1个
-                blank: 1, // 固定1个白板
-                civilian: playerCount - (playerCount > 10 ? 2 : 1) - 1 // 剩余为平民
-            };
-
-            // 打乱玩家顺序，公平分配身份
-            const shuffledPlayers = [...gameState.players].sort(() => Math.random() - 0.5);
-            shuffledPlayers.forEach((player, index) => {
-                if (index < roleCount.spy) {
-                    player.role = 'spy';
-                } else if (index < roleCount.spy + roleCount.blank) {
-                    player.role = 'blank';
+                
+                // 游戏结束条件
+                if (remainingUndercovers === 0) {
+                    // 平民胜利
+                    gameData.currentPhase = 'gameOver';
+                    pageManager.updateGamePage();
+                    
+                    // 广播游戏结束
+                    gameLogic.broadcastMessage({
+                        type: 'game_over',
+                        winner: 'civilian'
+                    });
+                } else if (remainingUndercovers >= remainingCivilians) {
+                    // 卧底胜利
+                    gameData.currentPhase = 'gameOver';
+                    pageManager.updateGamePage();
+                    
+                    // 广播游戏结束
+                    gameLogic.broadcastMessage({
+                        type: 'game_over',
+                        winner: 'undercover'
+                    });
                 } else {
-                    player.role = 'civilian';
+                    // 游戏继续
+                    gameLogic.continueGame();
                 }
-            });
-
-            // 更新游戏状态
-            gameState = {
-                ...gameState,
-                players: shuffledPlayers,
-                status: 'playing',
-                speeches: [],
-                votes: {},
-                speechCount: 0
-            };
-
-            // 同步到所有玩家
-            const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('client-room-updated', gameState);
-
-            // 自己更新UI
-            DOM.gameContent.classList.remove('hidden');
-            updateMyRoleInfo();
-            DOM.gameStatus.textContent = "（游戏中）";
-            DOM.gameStatus.style.color = "#ed8936"; // 游戏中显示橙色状态
-        }
-
-        // 5. 提交发言
-        function handleSubmitSpeech() {
-            const content = DOM.speechInput.value.trim();
-            if (!content) return alert('请输入发言内容！');
-
-            // 检查是否已发言（每人每轮仅1次发言机会）
-            const hasSpoken = gameState.speeches.some(speech => speech.playerId === currentUser.id);
-            if (hasSpoken) return alert('你已完成本轮发言，不能重复发言！');
-
-            // 校验：平民/卧底不能包含自己词语中的字
-            const myPlayer = gameState.players.find(p => p.id === currentUser.id);
-            if (!myPlayer) return;
-
-            const myWord = myPlayer.role === 'civilian' 
-                ? gameState.wordPair.civilian 
-                : myPlayer.role === 'spy' 
-                    ? gameState.wordPair.spy 
-                    : '';
-
-            if (myPlayer.role !== 'blank' && myWord.split('').some(char => content.includes(char))) {
-                DOM.speechError.style.display = 'block';
-                return;
-            }
-
-            // 新增发言记录
-            const newSpeech = {
-                playerId: currentUser.id,
-                playerName: currentUser.name,
-                content: content,
-                time: new Date().toLocaleTimeString() // 显示发言时间
-            };
-
-            // 更新游戏状态
-            gameState = {
-                ...gameState,
-                speeches: [...gameState.speeches, newSpeech],
-                speechCount: gameState.speechCount + 1
-            };
-
-            // 同步到所有玩家
-            const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('client-room-updated', gameState);
-
-            // 清空输入框，隐藏错误提示
-            DOM.speechInput.value = '';
-            DOM.speechError.style.display = 'none';
-        }
-
-        // 6. 提交投票
-        function handleSubmitVote() {
-            const selectedPlayer = document.querySelector('.vote-item.selected');
-            if (!selectedPlayer) return alert('请选择你要投票淘汰的玩家！');
-
-            const targetPlayerId = selectedPlayer.dataset.playerId;
-            // 记录当前玩家的投票
-            gameState.votes[currentUser.id] = targetPlayerId;
-
-            // 同步到所有玩家
-            const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('client-room-updated', gameState);
-
-            // 投票后禁用投票区，防止重复投票
-            DOM.voteList.querySelectorAll('.vote-item').forEach(item => item.style.pointerEvents = 'none');
-        }
-
-        // 7. 处理投票结果
-        function handleVoteResult() {
-            // 统计投票数
-            const voteCount = {};
-            Object.values(gameState.votes).forEach(targetId => {
-                voteCount[targetId] = (voteCount[targetId] || 0) + 1;
-            });
-
-            // 找出得票最高者（处理平票：取第一个得票最高的玩家）
-            let maxVotes = 0;
-            let eliminatedPlayerId = null;
-            Object.entries(voteCount).forEach(([playerId, count]) => {
-                if (count > maxVotes) {
-                    maxVotes = count;
-                    eliminatedPlayerId = playerId;
-                }
-            });
-
-            // 标记被淘汰玩家为死亡状态
-            const updatedPlayers = gameState.players.map(player => {
-                if (player.id === eliminatedPlayerId) {
-                    player.isAlive = false;
-                }
-                return player;
-            });
-
-            // 检查游戏是否结束（判断阵营胜负）
-            const aliveSpies = updatedPlayers.filter(p => p.isAlive && p.role === 'spy').length;
-            const aliveCivilians = updatedPlayers.filter(p => p.isAlive && p.role === 'civilian').length;
-            let gameResult = null;
-
-            if (aliveSpies === 0) {
-                // 所有卧底被淘汰，平民&白板获胜
-                gameResult = { winner: 'civilian&blank', reason: '所有卧底已被淘汰' };
-            } else if (aliveSpies >= aliveCivilians) {
-                // 卧底人数≥平民人数，卧底获胜
-                gameResult = { winner: 'spy', reason: '卧底人数≥平民人数' };
-            }
-
-            // 更新游戏状态
-            gameState = {
-                ...gameState,
-                players: updatedPlayers,
-                votes: {}, // 重置投票数据
-                speechCount: 0, // 重置发言计数
-                speeches: [], // 重置发言记录
-                status: gameResult ? 'ended' : 'playing' // 游戏结束或继续
-            };
-
-            // 同步到所有玩家
-            const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('client-room-updated', gameState);
-
-            // 显示游戏结束弹窗（若游戏结束）
-            if (gameResult) {
-                DOM.gameStatus.textContent = "（游戏结束）";
-                DOM.gameStatus.style.color = "#e53e3e"; // 游戏结束显示红色状态
-                showGameEndModal(gameResult, updatedPlayers);
-            }
-        }
-
-        // 8. 再来一局（仅房主可发起）
-        function handleRestartGame() {
-            if (!currentRoom.isHost) return alert('仅房主可发起再来一局！');
-
-            // 重置玩家状态（保留玩家列表，重置身份和存活状态）
-            const resetPlayers = gameState.players.map(player => ({
-                ...player,
-                role: null,
-                isAlive: true
-            }));
-            // 重新随机抽取词语对
-            const newWordPair = wordLibrary[Math.floor(Math.random() * wordLibrary.length)];
-
-            // 重置游戏状态
-            gameState = {
-                players: resetPlayers,
-                wordPair: newWordPair,
-                status: 'waiting',
-                speeches: [],
-                votes: {},
-                speechCount: 0
-            };
-
-            // 同步到所有玩家
-            const channel = pusher.channel(`room-${currentRoom.id}`);
-            channel.trigger('client-room-updated', gameState);
-
-            // 自己更新UI
-            DOM.gameEndModal.classList.add('hidden');
-            DOM.gameContent.classList.add('hidden');
-            DOM.voteSection.classList.add('hidden');
-            DOM.gameStatus.textContent = "（等待中）";
-            DOM.gameStatus.style.color = "#48bb78"; // 等待中显示绿色状态
-            updatePlayerList();
-            updateStartBtnStatus();
-        }
-
-        // 9. 离开房间
-        function handleLeaveRoom() {
-            if (!confirm('确定要离开房间吗？离开后将无法继续当前游戏！')) return;
-
-            // 移除当前玩家
-            const updatedPlayers = gameState.players.filter(player => player.id !== currentUser.id);
-
-            // 同步更新到房间（若还有其他玩家）
-            if (updatedPlayers.length > 0) {
-                gameState = { ...gameState, players: updatedPlayers };
-                const channel = pusher.channel(`room-${currentRoom.id}`);
-                channel.trigger('client-room-updated', gameState);
-            }
-
-            // 退订房间频道，释放资源
-            pusher.unsubscribe(`room-${currentRoom.id}`);
-
-            // 返回首页
-            window.location.reload();
-        }
-
-        // 辅助函数：更新玩家列表UI
-        function updatePlayerList() {
-            DOM.playerList.innerHTML = '';
-            DOM.playerCount.textContent = gameState.players.length;
-
-            gameState.players.forEach(player => {
-                const isCurrentUser = player.id === currentUser.id;
-                const playerCard = document.createElement('div');
-                playerCard.className = `player-card ${player.isAlive ? 'alive' : 'dead'} ${isCurrentUser ? 'you' : ''}`;
-                playerCard.innerHTML = `
-                    <div style="font-weight: 600; margin-bottom: 5px;">${player.name}</div>
-                    <div style="font-size: 14px; color: #666;">${player.isAlive ? '存活' : '已淘汰'}</div>
-                    ${isCurrentUser ? '<div style="color: #4299e1; font-size: 12px; margin-top: 5px;">（你）</div>' : ''}
-                `;
-                DOM.playerList.appendChild(playerCard);
-            });
-
-            // 非房主显示等待状态
-            if (!currentRoom.isHost) {
-                DOM.startGameBtn.classList.remove('hidden');
-                if (gameState.players.length >= 4) {
-                    DOM.startGameBtn.disabled = true;
-                    DOM.startGameBtn.textContent = `等待房主开始（${gameState.players.length}/4人）`;
-                } else {
-                    DOM.startGameBtn.disabled = true;
-                    DOM.startGameBtn.textContent = `等待更多玩家（${gameState.players.length}/4人）`;
-                }
-            }
-        }
-
-        // 辅助函数：更新房主的开始按钮状态
-        function updateStartBtnStatus() {
-            if (gameState.players.length >= 4) {
-                DOM.startGameBtn.disabled = false;
-                DOM.startGameBtn.textContent = `开始游戏（${gameState.players.length}/4人）`;
-            } else {
-                DOM.startGameBtn.disabled = true;
-                DOM.startGameBtn.textContent = `开始游戏（${gameState.players.length}/4人）`;
-            }
-        }
-
-        // 辅助函数：更新个人身份信息UI
-        function updateMyRoleInfo() {
-            const myPlayer = gameState.players.find(player => player.id === currentUser.id);
-            if (!myPlayer || !myPlayer.role) return;
-
-            // 更新身份标签
-            if (myPlayer.role === 'civilian') {
-                DOM.myRole.className = 'role-tag role-civilian';
-                DOM.myRole.textContent = '平民';
-                DOM.myWord.classList.remove('hidden');
-                DOM.myWord.querySelector('span').textContent = gameState.wordPair.civilian;
-                DOM.blankTip.classList.add('hidden');
-            } else if (myPlayer.role === 'spy') {
-                DOM.myRole.className = 'role-tag role-spy';
-                DOM.myRole.textContent = '卧底';
-                DOM.myWord.classList.remove('hidden');
-                DOM.myWord.querySelector('span').textContent = gameState.wordPair.spy;
-                DOM.blankTip.classList.add('hidden');
-            } else if (myPlayer.role === 'blank') {
-                DOM.myRole.className = 'role-tag role-blank';
-                DOM.myRole.textContent = '白板';
-                DOM.myWord.classList.add('hidden');
-                DOM.blankTip.classList.remove('hidden');
-            }
-        }
-
-        // 辅助函数：更新发言列表UI
-        function updateSpeechList() {
-            DOM.speechList.innerHTML = '';
-            gameState.speeches.forEach(speech => {
-                const speechItem = document.createElement('div');
-                speechItem.className = 'speech-item';
-                speechItem.innerHTML = `
-                    <div class="speech-name">
-                        ${speech.playerName}
-                        <span class="speech-time">${speech.time}</span>
-                    </div>
-                    <div class="speech-content">${speech.content}</div>
-                `;
-                DOM.speechList.appendChild(speechItem);
-            });
-            // 自动滚动到底部，显示最新发言
-            DOM.speechList.scrollTop = DOM.speechList.scrollHeight;
-        }
-
-        // 辅助函数：更新投票区显示状态
-        function updateVoteSection() {
-            const myPlayer = gameState.players.find(p => p.id === currentUser.id);
-            const isAlive = myPlayer ? myPlayer.isAlive : false;
-            const hasSpoken = gameState.speeches.some(s => s.playerId === currentUser.id);
-            const allPlayersSpoken = gameState.speechCount === getAliveCount();
-
-            // 存活+已发言+所有人都发言了，才显示投票区
-            if (isAlive && hasSpoken && allPlayersSpoken) {
-                DOM.voteSection.classList.remove('hidden');
-                updateVoteList(); // 刷新投票列表
-            } else {
-                DOM.voteSection.classList.add('hidden');
-            }
-        }
-
-        // 辅助函数：更新投票列表UI
-        function updateVoteList() {
-            DOM.voteList.innerHTML = '';
-            DOM.submitVoteBtn.disabled = true;
-
-            // 只能投票给存活的其他玩家
-            const validTargets = gameState.players.filter(player => 
-                player.isAlive && player.id !== currentUser.id
-            );
-
-            validTargets.forEach(target => {
-                const voteItem = document.createElement('div');
-                voteItem.className = 'vote-item';
-                voteItem.dataset.playerId = target.id;
-                voteItem.textContent = target.name;
-                // 点击选中投票目标
-                voteItem.addEventListener('click', () => {
-                    document.querySelectorAll('.vote-item').forEach(item => item.classList.remove('selected'));
-                    voteItem.classList.add('selected');
-                    DOM.submitVoteBtn.disabled = false;
+            },
+            
+            // 继续游戏
+            continueGame() {
+                // 增加回合数
+                gameData.currentRound++;
+                
+                // 重置当前玩家索引
+                gameData.currentPlayerIndex = 0;
+                
+                // 开始下一轮描述阶段
+                gameLogic.startDescribePhase();
+            },
+            
+            // 再来一局
+            playAgain() {
+                // 重置游戏数据
+                gameData.isGameStarted = false;
+                gameData.currentPhase = 'waiting';
+                gameData.currentRound = 1;
+                gameData.currentPlayerIndex = 0;
+                gameData.descriptions = {};
+                gameData.votes = {};
+                gameData.eliminatedPlayers = [];
+                
+                // 返回房间页面
+                pageManager.showPage('room');
+                
+                // 广播再来一局
+                gameLogic.broadcastMessage({
+                    type: 'play_again'
                 });
-                DOM.voteList.appendChild(voteItem);
-            });
-        }
-
-        // 辅助函数：显示游戏结束弹窗
-        function showGameEndModal(result, players) {
-            DOM.winnerText.textContent = result.winner === 'civilian&blank' ? '平民&白板阵营' : '卧底阵营';
-            DOM.winReason.textContent = result.reason;
-            DOM.finalRoleList.innerHTML = '';
-
-            // 显示所有玩家的最终身份
-            players.forEach(player => {
-                const roleText = player.role === 'civilian' ? '平民' : player.role === 'spy' ? '卧底' : '白板';
-                const roleColor = player.role === 'civilian' ? '#48bb78' : player.role === 'spy' ? '#e53e3e' : '#ed8936';
-                DOM.finalRoleList.innerHTML += `
-                    <div style="margin-bottom: 6px; font-size: 14px;">
-                        ${player.name} - <span style="color: ${roleColor}; font-weight: 600;">${roleText}</span>
-                        （${player.isAlive ? '存活' : '已淘汰'}）
+            },
+            
+            // 发送游戏聊天消息
+            sendGameChat() {
+                const message = elements.gameChatInput.value.trim();
+                if (!message) return;
+                
+                // 添加消息到聊天区域
+                const messageElement = document.createElement('div');
+                messageElement.className = 'mb-2';
+                messageElement.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="player-avatar mr-2" style="width: 30px; height: 30px; font-size: 14px;">
+                            ${gameData.nickname.charAt(0)}
+                        </div>
+                        <div>
+                            <div class="flex items-center">
+                                <span class="font-semibold mr-2">${gameData.nickname}</span>
+                                <span class="text-xs text-gray-400">${new Date().toLocaleTimeString()}</span>
+                            </div>
+                            <p class="text-sm">${message}</p>
+                        </div>
                     </div>
                 `;
-            });
+                elements.gameChatMessages.appendChild(messageElement);
+                elements.gameChatMessages.scrollTop = elements.gameChatMessages.scrollHeight;
+                
+                // 清空输入框
+                elements.gameChatInput.value = '';
+                
+                // 广播消息
+                gameLogic.broadcastMessage({
+                    type: 'game_chat_message',
+                    senderId: gameData.userId,
+                    senderNickname: gameData.nickname,
+                    message: message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            },
+            
+            // 显示自定义词语模态框
+            showCustomWordsModal() {
+                // 更新词语列表
+                gameLogic.updateCustomWordsList();
+                
+                elements.customWordsModal.classList.remove('hidden');
+            },
+            
+            // 更新自定义词语列表
+            updateCustomWordsList() {
+                elements.wordPairsList.innerHTML = '';
+                
+                if (gameData.customWordPairs.length === 0) {
+                    elements.wordPairsList.innerHTML = '<p class="text-gray-400 text-center py-4">暂无自定义词语</p>';
+                    return;
+                }
+                
+                gameData.customWordPairs.forEach((pair, index) => {
+                    const wordElement = document.createElement('div');
+                    wordElement.className = 'flex justify-between items-center p-2 bg-dark rounded mb-2';
+                    wordElement.innerHTML = `
+                        <span>${pair.civilian} <i class="fa fa-arrow-right text-primary"></i> ${pair.undercover}</span>
+                        <button class="text-gray-400 hover:text-danger delete-word-btn" data-index="${index}">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    `;
+                    
+                    // 添加删除事件
+                    const deleteBtn = wordElement.querySelector('.delete-word-btn');
+                    deleteBtn.addEventListener('click', () => {
+                        gameData.customWordPairs.splice(index, 1);
+                        storage.saveCustomWords();
+                        gameLogic.updateCustomWordsList();
+                        utils.showToast('词语已删除', 'info');
+                    });
+                    
+                    elements.wordPairsList.appendChild(wordElement);
+                });
+            },
+            
+            // 添加自定义词语对
+            addCustomWordPair() {
+                const civilianWord = elements.civilianWordInput.value.trim();
+                const undercoverWord = elements.undercoverWordInput.value.trim();
+                
+                if (!civilianWord || !undercoverWord) {
+                    utils.showToast('请输入完整的词语对', 'error');
+                    return;
+                }
+                
+                if (civilianWord === undercoverWord) {
+                    utils.showToast('平民词语和卧底词语不能相同', 'error');
+                    return;
+                }
+                
+                // 检查是否已存在
+                const exists = gameData.customWordPairs.some(pair => 
+                    (pair.civilian === civilianWord && pair.undercover === undercoverWord) ||
+                    (pair.civilian === undercoverWord && pair.undercover === civilianWord)
+                );
+                
+                if (exists) {
+                    utils.showToast('该词语对已存在', 'warning');
+                    return;
+                }
+                
+                // 添加词语对
+                gameData.customWordPairs.push({
+                    civilian: civilianWord,
+                    undercover: undercoverWord
+                });
+                
+                // 保存到本地存储
+                storage.saveCustomWords();
+                
+                // 更新列表
+                gameLogic.updateCustomWordsList();
+                
+                // 清空输入框
+                elements.civilianWordInput.value = '';
+                elements.undercoverWordInput.value = '';
+                
+                utils.showToast('词语对已添加', 'success');
+            },
+            
+            // 清空所有自定义词语
+            clearAllCustomWords() {
+                if (confirm('确定要清空所有自定义词语吗？')) {
+                    gameData.customWordPairs = [];
+                    storage.saveCustomWords();
+                    gameLogic.updateCustomWordsList();
+                    utils.showToast('已清空所有自定义词语', 'info');
+                }
+            },
+            
+            // 导入自定义词语
+            importCustomWords() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const words = JSON.parse(e.target.result);
+                            
+                            if (!Array.isArray(words)) {
+                                utils.showToast('导入失败：无效的文件格式', 'error');
+                                return;
+                            }
+                            
+                            // 验证词语格式
+                            const validWords = words.filter(word => 
+                                word && typeof word === 'object' && 
+                                word.civilian && typeof word.civilian === 'string' && 
+                                word.undercover && typeof word.undercover === 'string'
+                            );
+                            
+                            if (validWords.length === 0) {
+                                utils.showToast('导入失败：没有有效的词语对', 'error');
+                                return;
+                            }
+                            
+                            // 合并词语
+                            const newWords = validWords.filter(newWord => 
+                                !gameData.customWordPairs.some(existingWord => 
+                                    (existingWord.civilian === newWord.civilian && existingWord.undercover === newWord.undercover) ||
+                                    (existingWord.civilian === newWord.undercover && existingWord.undercover === newWord.civilian)
+                                )
+                            );
+                            
+                            gameData.customWordPairs = [...gameData.customWordPairs, ...newWords];
+                            storage.saveCustomWords();
+                            gameLogic.updateCustomWordsList();
+                            
+                            utils.showToast(`成功导入 ${newWords.length} 个词语对`, 'success');
+                        } catch (error) {
+                            console.error('导入词语失败:', error);
+                            utils.showToast('导入失败：文件格式错误', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            },
+            
+            // 导出自定义词语
+            exportCustomWords() {
+                if (gameData.customWordPairs.length === 0) {
+                    utils.showToast('没有自定义词语可导出', 'warning');
+                    return;
+                }
+                
+                const data = JSON.stringify(gameData.customWordPairs, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `who_is_undercover_custom_words_${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                utils.showToast('词语已导出', 'success');
+            },
+            
+            // 显示设置模态框
+            showSettingsModal() {
+                // 更新设置
+                elements.soundToggle.checked = gameData.settings.soundEnabled;
+                elements.musicToggle.checked = gameData.settings.musicEnabled;
+                elements.volumeSlider.value = gameData.settings.volume;
+                elements.themeSelect.value = gameData.settings.theme;
+                
+                elements.settingsModal.classList.remove('hidden');
+            },
+            
+            // 保存设置
+            saveSettings() {
+                gameData.settings.soundEnabled = elements.soundToggle.checked;
+                gameData.settings.musicEnabled = elements.musicToggle.checked;
+                gameData.settings.volume = parseInt(elements.volumeSlider.value);
+                gameData.settings.theme = elements.themeSelect.value;
+                
+                // 保存到本地存储
+                storage.saveSettings();
+                
+                // 应用主题
+                gameLogic.applyTheme();
+                
+                elements.settingsModal.classList.add('hidden');
+                utils.showToast('设置已保存', 'success');
+            },
+            
+            // 应用主题
+            applyTheme() {
+                const theme = gameData.settings.theme;
+                if (theme === 'light') {
+                    document.body.classList.add('light-theme');
+                } else {
+                    document.body.classList.remove('light-theme');
+                }
+            },
+            
+            // 显示添加自定义词语模态框
+            showAddCustomWordsModal() {
+                // 更新游戏词语列表
+                gameLogic.updateGameWordsList();
+                
+                elements.addCustomWordsModal.classList.remove('hidden');
+            },
+            
+            // 更新游戏词语列表
+            updateGameWordsList() {
+                elements.gameWordPairsList.innerHTML = '';
+                
+                if (gameData.gameWordPairs.length === 0) {
+                    elements.gameWordPairsList.innerHTML = '<p class="text-gray-400 text-center py-4">暂无自定义词语</p>';
+                    return;
+                }
+                
+                gameData.gameWordPairs.forEach((pair, index) => {
+                    const wordElement = document.createElement('div');
+                    wordElement.className = 'flex justify-between items-center p-2 bg-dark rounded mb-2';
+                    wordElement.innerHTML = `
+                        <span>${pair.civilian} <i class="fa fa-arrow-right text-primary"></i> ${pair.undercover}</span>
+                        <button class="text-gray-400 hover:text-danger delete-game-word-btn" data-index="${index}">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    `;
+                    
+                    // 添加删除事件
+                    const deleteBtn = wordElement.querySelector('.delete-game-word-btn');
+                    deleteBtn.addEventListener('click', () => {
+                        gameData.gameWordPairs.splice(index, 1);
+                        gameLogic.updateGameWordsList();
+                        utils.showToast('词语已删除', 'info');
+                    });
+                    
+                    elements.gameWordPairsList.appendChild(wordElement);
+                });
+            },
+            
+            // 添加游戏词语对
+            addGameWordPair() {
+                const civilianWord = elements.addCivilianWordInput.value.trim();
+                const undercoverWord = elements.addUndercoverWordInput.value.trim();
+                
+                if (!civilianWord || !undercoverWord) {
+                    utils.showToast('请输入完整的词语对', 'error');
+                    return;
+                }
+                
+                if (civilianWord === undercoverWord) {
+                    utils.showToast('平民词语和卧底词语不能相同', 'error');
+                    return;
+                }
+                
+                // 检查是否已存在
+                const exists = gameData.gameWordPairs.some(pair => 
+                    (pair.civilian === civilianWord && pair.undercover === undercoverWord) ||
+                    (pair.civilian === undercoverWord && pair.undercover === civilianWord)
+                );
+                
+                if (exists) {
+                    utils.showToast('该词语对已存在', 'warning');
+                    return;
+                }
+                
+                // 添加词语对
+                gameData.gameWordPairs.push({
+                    civilian: civilianWord,
+                    undercover: undercoverWord
+                });
+                
+                // 更新列表
+                gameLogic.updateGameWordsList();
+                
+                // 清空输入框
+                elements.addCivilianWordInput.value = '';
+                elements.addUndercoverWordInput.value = '';
+                
+                utils.showToast('词语对已添加', 'success');
+            },
+            
+            // 广播消息
+            broadcastMessage(message) {
+                Object.values(gameData.connections).forEach(conn => {
+                    if (conn.open) {
+                        conn.send(message);
+                    }
+                });
+            },
+            
+            // 处理消息
+            handleMessage(data, conn) {
+                console.log('收到消息:', data);
+                
+                switch (data.type) {
+                    case 'players_list':
+                        gameData.players = data.players;
+                        gameData.roomId = data.roomId;
+                        gameData.isHost = data.isHost;
+                        pageManager.updateRoomPage();
+                        break;
+                        
+                    case 'player_left':
+                        gameData.players = gameData.players.filter(p => p.id !== data.playerId);
+                        pageManager.updateRoomPage();
+                        break;
+                        
+                    case 'chat_message':
+                        const chatMessageElement = document.createElement('div');
+                        chatMessageElement.className = 'mb-2';
+                        chatMessageElement.innerHTML = `
+                            <div class="flex items-start">
+                                <div class="player-avatar mr-2" style="width: 30px; height: 30px; font-size: 14px;">
+                                    ${data.senderNickname.charAt(0)}
+                                </div>
+                                <div>
+                                    <div class="flex items-center">
+                                        <span class="font-semibold mr-2">${data.senderNickname}</span>
+                                        <span class="text-xs text-gray-400">${data.timestamp}</span>
+                                    </div>
+                                    <p class="text-sm">${data.message}</p>
+                                </div>
+                            </div>
+                        `;
+                        elements.chatMessages.appendChild(chatMessageElement);
+                        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                        break;
+                        
+                    case 'player_ready':
+                        const player = gameData.players.find(p => p.id === data.playerId);
+                        if (player) {
+                            player.isReady = data.isReady;
+                            pageManager.updateRoomPage();
+                        }
+                        break;
+                        
+                    case 'game_start':
+                        gameData.players = data.players;
+                        gameData.gameWordPairs = data.wordPairs;
+                        gameData.settings = { ...gameData.settings, ...data.settings };
+                        
+                        // 获取当前玩家的词语和角色
+                        const currentPlayer = data.players.find(p => p.id === gameData.userId);
+                        gameData.playerWord = currentPlayer.word;
+                        gameData.playerRole = currentPlayer.role;
+                        
+                        // 更新游戏状态
+                        gameData.isGameStarted = true;
+                        gameData.currentPhase = 'describing';
+                        gameData.currentRound = 1;
+                        gameData.currentPlayerIndex = 0;
+                        gameData.descriptions = {};
+                        gameData.votes = {};
+                        gameData.eliminatedPlayers = [];
+                        
+                        pageManager.showPage('game');
+                        break;
+                        
+                    case 'describe_phase_start':
+                        gameData.currentPhase = 'describing';
+                        gameData.currentPlayerIndex = data.currentPlayerIndex;
+                        gameData.currentRound = data.round;
+                        gameData.descriptions = {};
+                        pageManager.updateGamePage();
+                        break;
+                        
+                    case 'describe_submit':
+                        gameData.descriptions[data.playerId] = data.description;
+                        
+                        // 检查是否所有玩家都已描述
+                        const activePlayers = gameData.players.filter(p => !gameData.eliminatedPlayers.includes(p.id));
+                        if (Object.keys(gameData.descriptions).length === activePlayers.length) {
+                            gameLogic.startVotePhase();
+                        } else {
+                            // 切换到下一个玩家
+                            gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                            
+                            // 找到下一个未被淘汰的玩家
+                            while (gameData.eliminatedPlayers.includes(gameData.players[gameData.currentPlayerIndex].id)) {
+                                gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                            }
+                            
+                            pageManager.updateGamePage();
+                        }
+                        break;
+                        
+                    case 'next_player_describe':
+                        gameData.currentPlayerIndex = data.currentPlayerIndex;
+                        pageManager.updateGamePage();
+                        break;
+                        
+                    case 'vote_phase_start':
+                        gameData.currentPhase = 'voting';
+                        gameData.votes = {};
+                        gameData.descriptions = data.descriptions;
+                        pageManager.updateGamePage();
+                        break;
+                        
+                    case 'vote_submit':
+                        gameData.votes[data.voterId] = data.votedId;
+                        
+                        // 检查是否所有玩家都已投票
+                        const activePlayers2 = gameData.players.filter(p => !gameData.eliminatedPlayers.includes(p.id));
+                        if (Object.keys(gameData.votes).length === activePlayers2.length) {
+                            // 计算投票结果
+                            gameLogic.calculateVoteResults();
+                        }
+                        break;
+                        
+                    case 'vote_result':
+                        gameData.eliminatedPlayers.push(data.eliminatedPlayerId);
+                        gameData.currentPhase = 'result';
+                        pageManager.updateGamePage();
+                        
+                        // 检查游戏是否结束
+                        setTimeout(() => {
+                            gameLogic.checkGameOver();
+                        }, 5000);
+                        break;
+                        
+                    case 'game_over':
+                        gameData.currentPhase = 'gameOver';
+                        pageManager.updateGamePage();
+                        break;
+                        
+                    case 'play_again':
+                        gameData.isGameStarted = false;
+                        gameData.currentPhase = 'waiting';
+                        gameData.currentRound = 1;
+                        gameData.currentPlayerIndex = 0;
+                        gameData.descriptions = {};
+                        gameData.votes = {};
+                        gameData.eliminatedPlayers = [];
+                        
+                        pageManager.showPage('room');
+                        break;
+                        
+                    case 'game_chat_message':
+                        const gameChatMessageElement = document.createElement('div');
+                        gameChatMessageElement.className = 'mb-2';
+                        gameChatMessageElement.innerHTML = `
+                            <div class="flex items-start">
+                                <div class="player-avatar mr-2" style="width: 30px; height: 30px; font-size: 14px;">
+                                    ${data.senderNickname.charAt(0)}
+                                </div>
+                                <div>
+                                    <div class="flex items-center">
+                                        <span class="font-semibold mr-2">${data.senderNickname}</span>
+                                        <span class="text-xs text-gray-400">${data.timestamp}</span>
+                                    </div>
+                                    <p class="text-sm">${data.message}</p>
+                                </div>
+                            </div>
+                        `;
+                        elements.gameChatMessages.appendChild(gameChatMessageElement);
+                        elements.gameChatMessages.scrollTop = elements.gameChatMessages.scrollHeight;
+                        break;
+                }
+            }
+        };
 
-            DOM.gameEndModal.classList.remove('hidden');
-        }
-
-        // 辅助函数：获取存活玩家数量
-        function getAliveCount() {
-            return gameState.players.filter(player => player.isAlive).length;
-        }
+        // 初始化游戏
+        window.addEventListener('DOMContentLoaded', () => {
+            gameLogic.init();
+        });
     </script>
 </body>
 </html>
