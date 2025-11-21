@@ -51,6 +51,7 @@
         .role-blank { background-color: #ed8936; }
         .page { animation: fadeIn 0.3s ease; }
         .error-tip { color: #e53e3e; font-size: 14px; margin-top: -10px; margin-bottom: 10px; display: none; }
+        .loading-tip { color: #4299e1; font-size: 16px; text-align: center; margin: 15px 0; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -78,11 +79,13 @@
                     <div class="card-header mb-20">加入房间</div>
                     <input type="text" id="room-id-input" class="input" placeholder="请输入6位房间号">
                     <div id="room-id-error" class="error-tip">请输入6位数字房间号！</div>
+                    <div id="join-loading" class="loading-tip hidden">正在连接房间...请稍候</div>
                     <div class="flex justify-between">
                         <button class="btn btn-danger" id="cancel-join-btn">取消</button>
                         <button class="btn btn-primary" id="confirm-join-btn">确认加入</button>
                     </div>
                     <div id="join-error" class="error-tip text-center" style="margin-top: 10px;">房间不存在或已开始游戏！</div>
+                    <div id="join-timeout-error" class="error-tip text-center" style="margin-top: 10px; display: none;">连接超时，请检查房间号或提醒房主进入房间</div>
                 </div>
             </div>
 
@@ -91,7 +94,7 @@
                 <div class="modal-content">
                     <div class="card-header mb-20">房间创建成功</div>
                     <p class="mb-10">你的房间号：<span id="created-room-id" style="font-size: 24px; color: #4299e1; font-weight: 600;"></span></p>
-                    <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，4人以上可开始游戏</p>
+                    <p class="mb-20 text-center" style="color: #666;">复制房间号分享给好友，点击下方按钮进入房间等待</p>
                     <button class="btn btn-primary w-100" id="enter-room-btn">进入游戏房间</button>
                 </div>
             </div>
@@ -173,8 +176,10 @@
             votes: {}, // { voterId: targetId }
             speechCount: 0 // 已发言人数
         };
+        // 加入房间超时计时器
+        let joinRoomTimer = null;
 
-        // 词语库
+        // 词语库（新增更多词语对，提升游戏多样性）
         const wordLibrary = [
             { civilian: "奶茶", spy: "果汁" },
             { civilian: "手机", spy: "平板" },
@@ -190,7 +195,12 @@
             { civilian: "面包", spy: "蛋糕" },
             { civilian: "拖鞋", spy: "凉鞋" },
             { civilian: "台灯", spy: "吊灯" },
-            { civilian: "自行车", spy: "电动车" }
+            { civilian: "自行车", spy: "电动车" },
+            { civilian: "咖啡", spy: "茶" },
+            { civilian: "电脑", spy: "笔记本" },
+            { civilian: "沙发", spy: "椅子" },
+            { civilian: "口红", spy: "唇釉" },
+            { civilian: "跑步", spy: "散步" }
         ];
 
         // DOM 元素缓存
@@ -211,7 +221,10 @@
             createError: document.getElementById('create-error'),
             roomIdError: document.getElementById('room-id-error'),
             joinError: document.getElementById('join-error'),
+            joinTimeoutError: document.getElementById('join-timeout-error'),
             speechError: document.getElementById('speech-error'),
+            // 加载提示
+            joinLoading: document.getElementById('join-loading'),
             // 按钮
             createRoomBtn: document.getElementById('create-room-btn'),
             joinRoomBtn: document.getElementById('join-room-btn'),
@@ -254,10 +267,13 @@
             DOM.createRoomBtn.addEventListener('click', handleCreateRoom);
             DOM.joinRoomBtn.addEventListener('click', () => {
                 DOM.joinError.style.display = 'none';
+                DOM.joinTimeoutError.style.display = 'none';
                 DOM.roomEntryPage.classList.add('hidden');
                 DOM.joinModal.classList.remove('hidden');
             });
             DOM.cancelJoinBtn.addEventListener('click', () => {
+                // 清除超时计时器
+                if (joinRoomTimer) clearTimeout(joinRoomTimer);
                 DOM.joinModal.classList.add('hidden');
                 DOM.roomEntryPage.classList.remove('hidden');
             });
@@ -281,6 +297,7 @@
                 e.target.value = e.target.value.trim().replace(/[^0-9]/g, '');
                 DOM.roomIdError.style.display = 'none';
                 DOM.joinError.style.display = 'none';
+                DOM.joinTimeoutError.style.display = 'none';
             });
             DOM.speechInput.addEventListener('keyup', (e) => {
                 e.key === 'Enter' && handleSubmitSpeech();
@@ -288,7 +305,7 @@
             });
         }
 
-        // 1. 创建房间（核心修复：Pusher事件名前缀改为client-）
+        // 1. 创建房间（核心修复：提前绑定状态请求监听，确保新玩家能获取房间数据）
         function handleCreateRoom() {
             const name = DOM.playerName.value.trim();
             if (!name) {
@@ -296,7 +313,7 @@
                 return;
             }
 
-            // 生成6位房间号
+            // 生成6位房间号（确保唯一且易记）
             const roomId = Math.floor(100000 + Math.random() * 900000).toString();
             currentUser.name = name;
             currentRoom.id = roomId;
@@ -316,15 +333,13 @@
                 // 订阅房间频道（Pusher 实时通信）
                 const channel = pusher.subscribe(`room-${roomId}`);
                 
-                // 同步房间初始数据到频道（事件名改为client-room-updated）
-                channel.trigger('client-room-updated', gameState);
-                
-                // 监听房间数据变化（接收其他玩家的更新）
-                channel.bind('client-room-updated', (updatedState) => {
-                    gameState = updatedState;
-                    updatePlayerList();
-                    if (currentRoom.isHost) updateStartBtnStatus();
+                // 【关键修复1】创建房间后立即绑定状态请求监听，无需等待进入房间
+                channel.bind('client-request-room-state', () => {
+                    channel.trigger('client-room-updated', gameState);
                 });
+
+                // 同步房间初始数据到频道
+                channel.trigger('client-room-updated', gameState);
 
                 // 显示创建成功弹窗
                 DOM.createdRoomId.textContent = roomId;
@@ -336,7 +351,7 @@
             }
         }
 
-        // 2. 加入房间（修复Pusher事件名）
+        // 2. 加入房间（核心修复：提前绑定状态更新监听+超时处理）
         function handleJoinRoom() {
             const name = DOM.playerName.value.trim();
             const roomId = DOM.roomIdInput.value.trim();
@@ -350,6 +365,12 @@
                 return;
             }
 
+            // 显示加载提示，隐藏错误提示，禁用按钮防止重复点击
+            DOM.confirmJoinBtn.disabled = true;
+            DOM.joinLoading.classList.remove('hidden');
+            DOM.joinError.style.display = 'none';
+            DOM.joinTimeoutError.style.display = 'none';
+
             currentUser.name = name;
             currentRoom.id = roomId;
             currentRoom.isHost = false;
@@ -358,53 +379,64 @@
                 // 订阅目标房间频道
                 const channel = pusher.subscribe(`room-${roomId}`);
                 
-                // 监听房间当前数据（获取已有玩家信息）
-                channel.bind('client-room-updated', (currentState) => {
+                // 【关键修复2】订阅后立即绑定状态更新监听，确保不遗漏同步信息
+                channel.bind('client-room-updated', (updatedState) => {
+                    // 清除超时计时器
+                    if (joinRoomTimer) clearTimeout(joinRoomTimer);
+                    // 恢复按钮状态与加载提示
+                    DOM.confirmJoinBtn.disabled = false;
+                    DOM.joinLoading.classList.add('hidden');
+
                     // 验证房间状态
-                    if (!currentState) {
+                    if (!updatedState) {
                         DOM.joinError.style.display = 'block';
                         return;
                     }
-                    if (currentState.status !== 'waiting') {
+                    if (updatedState.status !== 'waiting') {
                         DOM.joinError.style.display = 'block';
                         return;
                     }
-                    if (currentState.players.length >= 12) {
+                    if (updatedState.players.length >= 12) {
                         DOM.joinError.style.display = 'block';
+                        return;
+                    }
+
+                    // 检查当前玩家是否已在房间内（避免重复加入）
+                    const isAlreadyIn = updatedState.players.some(p => p.id === currentUser.id);
+                    if (isAlreadyIn) {
+                        gameState = updatedState;
+                        DOM.joinModal.classList.add('hidden');
+                        enterGameRoom();
                         return;
                     }
 
                     // 添加新玩家
                     const newPlayer = { id: currentUser.id, name, role: null, isAlive: true };
-                    gameState = { ...currentState, players: [...currentState.players, newPlayer] };
+                    gameState = { ...updatedState, players: [...updatedState.players, newPlayer] };
 
-                    // 同步更新到房间频道（事件名改为client-room-updated）
+                    // 同步更新到房间频道
                     channel.trigger('client-room-updated', gameState);
 
                     // 进入游戏房间
                     DOM.joinModal.classList.add('hidden');
                     enterGameRoom();
-
-                    // 持续监听房间数据变化
-                    channel.bind('client-room-updated', (updatedState) => {
-                        gameState = updatedState;
-                        updatePlayerList();
-                        updateMyRoleInfo();
-                        updateSpeechList();
-                        updateVoteSection();
-                        updateVoteList();
-
-                        // 投票完成处理
-                        if (gameState.status === 'playing' && Object.keys(gameState.votes).length === getAliveCount()) {
-                            setTimeout(handleVoteResult, 500);
-                        }
-                    });
                 });
 
-                // 触发一次数据请求（让频道发送当前状态）
+                // 【关键修复3】添加5秒超时处理，避免无限等待
+                joinRoomTimer = setTimeout(() => {
+                    DOM.confirmJoinBtn.disabled = false;
+                    DOM.joinLoading.classList.add('hidden');
+                    DOM.joinTimeoutError.style.display = 'block';
+                    // 退订无效频道，释放资源
+                    pusher.unsubscribe(`room-${roomId}`);
+                }, 5000);
+
+                // 触发数据请求，让房主返回当前房间状态
                 channel.trigger('client-request-room-state', {});
             } catch (err) {
                 console.error('加入房间失败：', err);
+                DOM.confirmJoinBtn.disabled = false;
+                DOM.joinLoading.classList.add('hidden');
                 DOM.joinError.style.display = 'block';
             }
         }
@@ -416,183 +448,224 @@
             DOM.currentRoomId.textContent = currentRoom.id;
             updatePlayerList();
 
-            // 房主显示开始按钮
+            // 房主显示开始按钮并更新状态
             if (currentRoom.isHost) {
                 DOM.startGameBtn.classList.remove('hidden');
                 updateStartBtnStatus();
-
-                // 房主持续同步房间数据
+            } else {
+                // 非房主持续监听房间数据变化
                 const channel = pusher.channel(`room-${currentRoom.id}`);
-                channel.bind('client-request-room-state', () => {
-                    channel.trigger('client-room-updated', gameState);
+                channel.bind('client-room-updated', (updatedState) => {
+                    gameState = updatedState;
+                    updatePlayerList();
+                    updateMyRoleInfo();
+                    updateSpeechList();
+                    updateVoteSection();
+                    updateVoteList();
+
+                    // 投票完成后自动处理结果
+                    if (gameState.status === 'playing' && Object.keys(gameState.votes).length === getAliveCount()) {
+                        setTimeout(handleVoteResult, 500);
+                    }
                 });
             }
         }
 
-        // 4. 开始游戏（房主，修复Pusher事件名）
+        // 4. 开始游戏
         function handleStartGame() {
-            if (gameState.players.length < 4) return alert('至少4人才能开始！');
+            if (gameState.players.length < 4) return alert('至少4人才能开始游戏！');
 
-            // 分配身份
-            const count = gameState.players.length;
+            // 分配身份（根据人数调整卧底数量）
+            const playerCount = gameState.players.length;
             const roleCount = {
-                spy: count > 10 ? 2 : 1,
-                blank: 1,
-                civilian: count - (count > 10 ? 2 : 1) - 1
+                spy: playerCount > 10 ? 2 : 1, // 10人以上2个卧底，否则1个
+                blank: 1, // 固定1个白板
+                civilian: playerCount - (playerCount > 10 ? 2 : 1) - 1 // 剩余为平民
             };
 
-            // 打乱玩家顺序
-            const shuffled = [...gameState.players].sort(() => Math.random() - 0.5);
-            shuffled.forEach((p, i) => {
-                if (i < roleCount.spy) p.role = 'spy';
-                else if (i < roleCount.spy + roleCount.blank) p.role = 'blank';
-                else p.role = 'civilian';
+            // 打乱玩家顺序，公平分配身份
+            const shuffledPlayers = [...gameState.players].sort(() => Math.random() - 0.5);
+            shuffledPlayers.forEach((player, index) => {
+                if (index < roleCount.spy) {
+                    player.role = 'spy';
+                } else if (index < roleCount.spy + roleCount.blank) {
+                    player.role = 'blank';
+                } else {
+                    player.role = 'civilian';
+                }
             });
 
             // 更新游戏状态
             gameState = {
                 ...gameState,
-                players: shuffled,
+                players: shuffledPlayers,
                 status: 'playing',
                 speeches: [],
                 votes: {},
                 speechCount: 0
             };
 
-            // 同步到所有玩家（事件名改为client-room-updated）
+            // 同步到所有玩家
             const channel = pusher.channel(`room-${currentRoom.id}`);
             channel.trigger('client-room-updated', gameState);
 
             // 自己更新UI
             DOM.gameContent.classList.remove('hidden');
             updateMyRoleInfo();
+            DOM.gameStatus.textContent = "（游戏中）";
+            DOM.gameStatus.style.color = "#ed8936"; // 游戏中显示橙色状态
         }
 
-        // 5. 提交发言（修复Pusher事件名）
+        // 5. 提交发言
         function handleSubmitSpeech() {
             const content = DOM.speechInput.value.trim();
-            if (!content) return;
+            if (!content) return alert('请输入发言内容！');
 
-            // 检查是否已发言
-            const hasSpoken = gameState.speeches.some(s => s.playerId === currentUser.id);
-            if (hasSpoken) return alert('你已发过言！');
+            // 检查是否已发言（每人每轮仅1次发言机会）
+            const hasSpoken = gameState.speeches.some(speech => speech.playerId === currentUser.id);
+            if (hasSpoken) return alert('你已完成本轮发言，不能重复发言！');
 
-            // 校验：不能包含自己词语的字
-            const myRole = gameState.players.find(p => p.id === currentUser.id)?.role;
-            const myWord = myRole === 'civilian' ? gameState.wordPair.civilian : myRole === 'spy' ? gameState.wordPair.spy : '';
-            if (myRole !== 'blank' && myWord.split('').some(c => content.includes(c))) {
+            // 校验：平民/卧底不能包含自己词语中的字
+            const myPlayer = gameState.players.find(p => p.id === currentUser.id);
+            if (!myPlayer) return;
+
+            const myWord = myPlayer.role === 'civilian' 
+                ? gameState.wordPair.civilian 
+                : myPlayer.role === 'spy' 
+                    ? gameState.wordPair.spy 
+                    : '';
+
+            if (myPlayer.role !== 'blank' && myWord.split('').some(char => content.includes(char))) {
                 DOM.speechError.style.display = 'block';
                 return;
             }
 
-            // 新增发言
-            const speech = {
+            // 新增发言记录
+            const newSpeech = {
                 playerId: currentUser.id,
                 playerName: currentUser.name,
-                content,
-                time: new Date().toLocaleTimeString()
+                content: content,
+                time: new Date().toLocaleTimeString() // 显示发言时间
             };
 
             // 更新游戏状态
             gameState = {
                 ...gameState,
-                speeches: [...gameState.speeches, speech],
+                speeches: [...gameState.speeches, newSpeech],
                 speechCount: gameState.speechCount + 1
             };
 
-            // 同步到所有玩家（事件名改为client-room-updated）
+            // 同步到所有玩家
             const channel = pusher.channel(`room-${currentRoom.id}`);
             channel.trigger('client-room-updated', gameState);
 
+            // 清空输入框，隐藏错误提示
             DOM.speechInput.value = '';
             DOM.speechError.style.display = 'none';
         }
 
-        // 6. 提交投票（修复Pusher事件名）
+        // 6. 提交投票
         function handleSubmitVote() {
-            const selected = document.querySelector('.vote-item.selected');
-            if (!selected) return alert('请选择投票目标！');
+            const selectedPlayer = document.querySelector('.vote-item.selected');
+            if (!selectedPlayer) return alert('请选择你要投票淘汰的玩家！');
 
-            const targetId = selected.dataset.playerId;
-            // 更新投票数据
-            gameState.votes[currentUser.id] = targetId;
+            const targetPlayerId = selectedPlayer.dataset.playerId;
+            // 记录当前玩家的投票
+            gameState.votes[currentUser.id] = targetPlayerId;
 
-            // 同步到所有玩家（事件名改为client-room-updated）
+            // 同步到所有玩家
             const channel = pusher.channel(`room-${currentRoom.id}`);
             channel.trigger('client-room-updated', gameState);
+
+            // 投票后禁用投票区，防止重复投票
+            DOM.voteList.querySelectorAll('.vote-item').forEach(item => item.style.pointerEvents = 'none');
         }
 
-        // 7. 处理投票结果（修复Pusher事件名）
+        // 7. 处理投票结果
         function handleVoteResult() {
-            // 统计投票
+            // 统计投票数
             const voteCount = {};
-            Object.values(gameState.votes).forEach(id => {
-                voteCount[id] = (voteCount[id] || 0) + 1;
+            Object.values(gameState.votes).forEach(targetId => {
+                voteCount[targetId] = (voteCount[targetId] || 0) + 1;
             });
 
-            // 找出得票最高者
+            // 找出得票最高者（处理平票：取第一个得票最高的玩家）
             let maxVotes = 0;
-            let eliminatedId = null;
-            Object.entries(voteCount).forEach(([id, count]) => {
+            let eliminatedPlayerId = null;
+            Object.entries(voteCount).forEach(([playerId, count]) => {
                 if (count > maxVotes) {
                     maxVotes = count;
-                    eliminatedId = id;
+                    eliminatedPlayerId = playerId;
                 }
             });
 
-            // 标记淘汰
-            const updatedPlayers = gameState.players.map(p => {
-                if (p.id === eliminatedId) p.isAlive = false;
-                return p;
+            // 标记被淘汰玩家为死亡状态
+            const updatedPlayers = gameState.players.map(player => {
+                if (player.id === eliminatedPlayerId) {
+                    player.isAlive = false;
+                }
+                return player;
             });
 
-            // 检查游戏结束
+            // 检查游戏是否结束（判断阵营胜负）
             const aliveSpies = updatedPlayers.filter(p => p.isAlive && p.role === 'spy').length;
             const aliveCivilians = updatedPlayers.filter(p => p.isAlive && p.role === 'civilian').length;
-            let result = null;
+            let gameResult = null;
 
             if (aliveSpies === 0) {
-                result = { winner: 'civilian&blank', reason: '所有卧底已被淘汰' };
+                // 所有卧底被淘汰，平民&白板获胜
+                gameResult = { winner: 'civilian&blank', reason: '所有卧底已被淘汰' };
             } else if (aliveSpies >= aliveCivilians) {
-                result = { winner: 'spy', reason: '卧底人数≥平民人数' };
+                // 卧底人数≥平民人数，卧底获胜
+                gameResult = { winner: 'spy', reason: '卧底人数≥平民人数' };
             }
 
-            // 更新数据
+            // 更新游戏状态
             gameState = {
                 ...gameState,
                 players: updatedPlayers,
-                votes: {},
-                speechCount: 0,
-                speeches: [],
-                status: result ? 'ended' : 'playing'
+                votes: {}, // 重置投票数据
+                speechCount: 0, // 重置发言计数
+                speeches: [], // 重置发言记录
+                status: gameResult ? 'ended' : 'playing' // 游戏结束或继续
             };
 
-            // 同步到所有玩家（事件名改为client-room-updated）
+            // 同步到所有玩家
             const channel = pusher.channel(`room-${currentRoom.id}`);
             channel.trigger('client-room-updated', gameState);
 
-            // 显示游戏结束弹窗
-            if (result) showGameEnd(result, updatedPlayers);
+            // 显示游戏结束弹窗（若游戏结束）
+            if (gameResult) {
+                DOM.gameStatus.textContent = "（游戏结束）";
+                DOM.gameStatus.style.color = "#e53e3e"; // 游戏结束显示红色状态
+                showGameEndModal(gameResult, updatedPlayers);
+            }
         }
 
-        // 8. 再来一局（修复Pusher事件名）
+        // 8. 再来一局（仅房主可发起）
         function handleRestartGame() {
             if (!currentRoom.isHost) return alert('仅房主可发起再来一局！');
 
-            // 重置玩家状态和游戏数据
-            const resetPlayers = gameState.players.map(p => ({ ...p, role: null, isAlive: true }));
-            const newWord = wordLibrary[Math.floor(Math.random() * wordLibrary.length)];
+            // 重置玩家状态（保留玩家列表，重置身份和存活状态）
+            const resetPlayers = gameState.players.map(player => ({
+                ...player,
+                role: null,
+                isAlive: true
+            }));
+            // 重新随机抽取词语对
+            const newWordPair = wordLibrary[Math.floor(Math.random() * wordLibrary.length)];
 
+            // 重置游戏状态
             gameState = {
                 players: resetPlayers,
-                wordPair: newWord,
+                wordPair: newWordPair,
                 status: 'waiting',
                 speeches: [],
                 votes: {},
                 speechCount: 0
             };
 
-            // 同步到所有玩家（事件名改为client-room-updated）
+            // 同步到所有玩家
             const channel = pusher.channel(`room-${currentRoom.id}`);
             channel.trigger('client-room-updated', gameState);
 
@@ -600,48 +673,64 @@
             DOM.gameEndModal.classList.add('hidden');
             DOM.gameContent.classList.add('hidden');
             DOM.voteSection.classList.add('hidden');
+            DOM.gameStatus.textContent = "（等待中）";
+            DOM.gameStatus.style.color = "#48bb78"; // 等待中显示绿色状态
+            updatePlayerList();
+            updateStartBtnStatus();
         }
 
         // 9. 离开房间
         function handleLeaveRoom() {
-            if (!confirm('确定离开房间？')) return;
+            if (!confirm('确定要离开房间吗？离开后将无法继续当前游戏！')) return;
 
             // 移除当前玩家
-            const updatedPlayers = gameState.players.filter(p => p.id !== currentUser.id);
+            const updatedPlayers = gameState.players.filter(player => player.id !== currentUser.id);
 
-            // 同步更新
+            // 同步更新到房间（若还有其他玩家）
             if (updatedPlayers.length > 0) {
                 gameState = { ...gameState, players: updatedPlayers };
                 const channel = pusher.channel(`room-${currentRoom.id}`);
                 channel.trigger('client-room-updated', gameState);
             }
 
-            // 退订频道
+            // 退订房间频道，释放资源
             pusher.unsubscribe(`room-${currentRoom.id}`);
 
             // 返回首页
             window.location.reload();
         }
 
-        // 辅助函数：更新玩家列表
+        // 辅助函数：更新玩家列表UI
         function updatePlayerList() {
             DOM.playerList.innerHTML = '';
             DOM.playerCount.textContent = gameState.players.length;
 
             gameState.players.forEach(player => {
-                const isYou = player.id === currentUser.id;
-                const card = document.createElement('div');
-                card.className = `player-card ${player.isAlive ? 'alive' : 'dead'} ${isYou ? 'you' : ''}`;
-                card.innerHTML = `
+                const isCurrentUser = player.id === currentUser.id;
+                const playerCard = document.createElement('div');
+                playerCard.className = `player-card ${player.isAlive ? 'alive' : 'dead'} ${isCurrentUser ? 'you' : ''}`;
+                playerCard.innerHTML = `
                     <div style="font-weight: 600; margin-bottom: 5px;">${player.name}</div>
                     <div style="font-size: 14px; color: #666;">${player.isAlive ? '存活' : '已淘汰'}</div>
-                    ${isYou ? '<div style="color: #4299e1; font-size: 12px; margin-top: 5px;">（你）</div>' : ''}
+                    ${isCurrentUser ? '<div style="color: #4299e1; font-size: 12px; margin-top: 5px;">（你）</div>' : ''}
                 `;
-                DOM.playerList.appendChild(card);
+                DOM.playerList.appendChild(playerCard);
             });
+
+            // 非房主显示等待状态
+            if (!currentRoom.isHost) {
+                DOM.startGameBtn.classList.remove('hidden');
+                if (gameState.players.length >= 4) {
+                    DOM.startGameBtn.disabled = true;
+                    DOM.startGameBtn.textContent = `等待房主开始（${gameState.players.length}/4人）`;
+                } else {
+                    DOM.startGameBtn.disabled = true;
+                    DOM.startGameBtn.textContent = `等待更多玩家（${gameState.players.length}/4人）`;
+                }
+            }
         }
 
-        // 辅助函数：更新开始按钮状态
+        // 辅助函数：更新房主的开始按钮状态
         function updateStartBtnStatus() {
             if (gameState.players.length >= 4) {
                 DOM.startGameBtn.disabled = false;
@@ -652,24 +741,25 @@
             }
         }
 
-        // 辅助函数：更新个人身份信息
+        // 辅助函数：更新个人身份信息UI
         function updateMyRoleInfo() {
-            const myRole = gameState.players.find(p => p.id === currentUser.id)?.role;
-            if (!myRole) return;
+            const myPlayer = gameState.players.find(player => player.id === currentUser.id);
+            if (!myPlayer || !myPlayer.role) return;
 
-            if (myRole === 'civilian') {
+            // 更新身份标签
+            if (myPlayer.role === 'civilian') {
                 DOM.myRole.className = 'role-tag role-civilian';
                 DOM.myRole.textContent = '平民';
                 DOM.myWord.classList.remove('hidden');
                 DOM.myWord.querySelector('span').textContent = gameState.wordPair.civilian;
                 DOM.blankTip.classList.add('hidden');
-            } else if (myRole === 'spy') {
+            } else if (myPlayer.role === 'spy') {
                 DOM.myRole.className = 'role-tag role-spy';
                 DOM.myRole.textContent = '卧底';
                 DOM.myWord.classList.remove('hidden');
                 DOM.myWord.querySelector('span').textContent = gameState.wordPair.spy;
                 DOM.blankTip.classList.add('hidden');
-            } else if (myRole === 'blank') {
+            } else if (myPlayer.role === 'blank') {
                 DOM.myRole.className = 'role-tag role-blank';
                 DOM.myRole.textContent = '白板';
                 DOM.myWord.classList.add('hidden');
@@ -677,72 +767,79 @@
             }
         }
 
-        // 辅助函数：更新发言列表
+        // 辅助函数：更新发言列表UI
         function updateSpeechList() {
             DOM.speechList.innerHTML = '';
             gameState.speeches.forEach(speech => {
-                const item = document.createElement('div');
-                item.className = 'speech-item';
-                item.innerHTML = `
+                const speechItem = document.createElement('div');
+                speechItem.className = 'speech-item';
+                speechItem.innerHTML = `
                     <div class="speech-name">
                         ${speech.playerName}
                         <span class="speech-time">${speech.time}</span>
                     </div>
                     <div class="speech-content">${speech.content}</div>
                 `;
-                DOM.speechList.appendChild(item);
+                DOM.speechList.appendChild(speechItem);
             });
-            // 滚动到底部
+            // 自动滚动到底部，显示最新发言
             DOM.speechList.scrollTop = DOM.speechList.scrollHeight;
         }
 
         // 辅助函数：更新投票区显示状态
         function updateVoteSection() {
-            const isAlive = gameState.players.find(p => p.id === currentUser.id)?.isAlive;
+            const myPlayer = gameState.players.find(p => p.id === currentUser.id);
+            const isAlive = myPlayer ? myPlayer.isAlive : false;
             const hasSpoken = gameState.speeches.some(s => s.playerId === currentUser.id);
-            const allSpoken = gameState.speechCount === getAliveCount();
+            const allPlayersSpoken = gameState.speechCount === getAliveCount();
 
-            if (isAlive && hasSpoken && allSpoken) {
+            // 存活+已发言+所有人都发言了，才显示投票区
+            if (isAlive && hasSpoken && allPlayersSpoken) {
                 DOM.voteSection.classList.remove('hidden');
+                updateVoteList(); // 刷新投票列表
             } else {
                 DOM.voteSection.classList.add('hidden');
             }
         }
 
-        // 辅助函数：更新投票列表
+        // 辅助函数：更新投票列表UI
         function updateVoteList() {
             DOM.voteList.innerHTML = '';
             DOM.submitVoteBtn.disabled = true;
 
-            // 只能投存活的其他玩家
-            const targets = gameState.players.filter(p => p.isAlive && p.id !== currentUser.id);
+            // 只能投票给存活的其他玩家
+            const validTargets = gameState.players.filter(player => 
+                player.isAlive && player.id !== currentUser.id
+            );
 
-            targets.forEach(player => {
-                const item = document.createElement('div');
-                item.className = 'vote-item';
-                item.dataset.playerId = player.id;
-                item.textContent = player.name;
-                item.addEventListener('click', () => {
-                    document.querySelectorAll('.vote-item').forEach(i => i.classList.remove('selected'));
-                    item.classList.add('selected');
+            validTargets.forEach(target => {
+                const voteItem = document.createElement('div');
+                voteItem.className = 'vote-item';
+                voteItem.dataset.playerId = target.id;
+                voteItem.textContent = target.name;
+                // 点击选中投票目标
+                voteItem.addEventListener('click', () => {
+                    document.querySelectorAll('.vote-item').forEach(item => item.classList.remove('selected'));
+                    voteItem.classList.add('selected');
                     DOM.submitVoteBtn.disabled = false;
                 });
-                DOM.voteList.appendChild(item);
+                DOM.voteList.appendChild(voteItem);
             });
         }
 
         // 辅助函数：显示游戏结束弹窗
-        function showGameEnd(result, players) {
+        function showGameEndModal(result, players) {
             DOM.winnerText.textContent = result.winner === 'civilian&blank' ? '平民&白板阵营' : '卧底阵营';
             DOM.winReason.textContent = result.reason;
             DOM.finalRoleList.innerHTML = '';
 
+            // 显示所有玩家的最终身份
             players.forEach(player => {
                 const roleText = player.role === 'civilian' ? '平民' : player.role === 'spy' ? '卧底' : '白板';
-                const color = player.role === 'civilian' ? '#48bb78' : player.role === 'spy' ? '#e53e3e' : '#ed8936';
+                const roleColor = player.role === 'civilian' ? '#48bb78' : player.role === 'spy' ? '#e53e3e' : '#ed8936';
                 DOM.finalRoleList.innerHTML += `
                     <div style="margin-bottom: 6px; font-size: 14px;">
-                        ${player.name} - <span style="color: ${color}; font-weight: 600;">${roleText}</span>
+                        ${player.name} - <span style="color: ${roleColor}; font-weight: 600;">${roleText}</span>
                         （${player.isAlive ? '存活' : '已淘汰'}）
                     </div>
                 `;
@@ -751,12 +848,12 @@
             DOM.gameEndModal.classList.remove('hidden');
         }
 
-        // 辅助函数：获取存活玩家数
+        // 辅助函数：获取存活玩家数量
         function getAliveCount() {
-            return gameState.players.filter(p => p.isAlive).length;
+            return gameState.players.filter(player => player.isAlive).length;
         }
 
-        // 初始化
+        // 初始化游戏（绑定所有事件）
         initEvents();
     </script>
 </body>
